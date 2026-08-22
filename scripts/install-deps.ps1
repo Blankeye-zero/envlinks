@@ -47,7 +47,7 @@ $general = @(
     "MongoDB.Server",
     "PostgreSQL.PostgreSQL.17",
     "Docker.DockerDesktop",
-    "Microsoft.VisualStudio.2022.BuildTools",
+    "Microsoft.VisualStudio.BuildTools",      # VS Build Tools 2026 (v18)
     "LLVM.LLVM",
     "Google.DartSDK",
     "Neovim.Neovim",

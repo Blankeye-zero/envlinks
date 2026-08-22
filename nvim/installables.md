@@ -12,7 +12,7 @@
 - MongoDB - `winget install MongoDB.Server`
 - PostgreSQL - `winget install PostgreSQL.PostgreSQL.17`
 - Docker Desktop - `winget install Docker.DockerDesktop`
-- VS Build Tools - `winget install Microsoft.VisualStudio.2022.BuildTools`
+- VS Build Tools 2026 - `winget install Microsoft.VisualStudio.BuildTools`
 - LLVM 22 - `winget install LLVM.LLVM`
 - Flutter & Dart - Dart SDK: `winget install Google.DartSDK`, then `dart pub global activate flutter` or install from flutter.dev
 - FVM - `dart pub global activate fvm`
