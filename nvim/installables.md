@@ -1,3 +1,7 @@
+> **Automated install:** every winget package below can be installed in one shot with
+> `powershell -NoProfile -ExecutionPolicy Bypass -File %USERPROFILE%\Projects\envlinks\scripts\install-deps.ps1`
+> (add `-NvimOnly` to skip the general dev tools). Non-winget items remain manual (see script output).
+
 - nvm-windows - `winget install CoreyButler.NVMforWindows`
 - Node.js - `winget install OpenJS.NodeJS`
 - pnpm - `winget install pnpm.pnpm`
