@@ -20,8 +20,8 @@
 
 param(
     [string]$RepoUrl           = "https://github.com/earendil-works/pi",
-    [string]$InstallDir        = "C:\Users\User\Projects\pi",
-    [string]$PiCmdPath         = "C:\Users\User\Projects\envlinks\pi.cmd",
+    [string]$InstallDir        = "$env:USERPROFILE\Projects\pi",
+    [string]$PiCmdPath         = "$env:USERPROFILE\Projects\envlinks\pi.cmd",
     [int]   $RequiredNodeMajor = 24
 )
 
