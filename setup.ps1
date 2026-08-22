@@ -86,13 +86,17 @@ function Install-FileLink([string]$link, [string]$target) {
         $script:linked += "$link -> $target (symlink)"
     } catch {
         # No Developer Mode / admin: fall back to copying the repo file.
+        $diff = $true
         if (Test-Path -LiteralPath $link) {
-            $diff = $true
             try {
                 $diff = -not ((Get-FileHash $link).Hash -eq (Get-FileHash $target).Hash)
             } catch { $diff = $true }
-            if ($diff) { Backup-Existing $link }
         }
+        if (-not $diff) {
+            $script:skipped += "$link (copy already in sync; symlink unavailable)"
+            return
+        }
+        if (Test-Path -LiteralPath $link) { Backup-Existing $link }
         Copy-Item -LiteralPath $target -Destination $link -Force
         $script:copied += "$link (symlink unavailable; copied from repo)"
     }
