@@ -119,9 +119,15 @@ if (-not (Test-Path -LiteralPath $piExe)) {
     Fail "Built binary not found at '$piExe'."
 }
 
+# Emit a portable launcher: use %USERPROFILE% when the exe lives under it,
+# so the generated pi.cmd works for any user / machine.
 #   @echo off
-#   "<piExe>" %*
-$cmdContent = "@echo off`r`n`"$piExe`" %*`r`n"
+#   "%USERPROFILE%\...\pi.exe" %*
+$exeForCmd = $piExe
+if ($piExe.StartsWith($env:USERPROFILE, [System.StringComparison]::OrdinalIgnoreCase)) {
+    $exeForCmd = "%USERPROFILE%" + $piExe.Substring($env:USERPROFILE.Length)
+}
+$cmdContent = "@echo off`r`n`"$exeForCmd`" %*`r`n"
 
 $PiCmdPath = [System.IO.Path]::GetFullPath($PiCmdPath)
 $piCmdDir  = Split-Path -Parent $PiCmdPath

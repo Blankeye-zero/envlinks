@@ -1,2 +1,2 @@
 @echo off
-"C:\Users\User\Projects\pi\packages\coding-agent\dist\pi.exe" %*
+"%USERPROFILE%\Projects\pi\packages\coding-agent\dist\pi.exe" %*
