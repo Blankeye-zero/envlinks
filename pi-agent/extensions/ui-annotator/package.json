@@ -1,0 +1,23 @@
+{
+  "name": "pi-extension-ui-annotator",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Run an Angular frontend and annotate UI elements in a live browser as context for pi",
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "dependencies": {
+    "puppeteer-core": "^23.10.4",
+    "typebox": "^1.3.16"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  },
+  "scripts": {
+    "test": "npm run build && esbuild src/picker.ts --format=cjs --outfile=node_modules/.tmp-picker.cjs && node test-picker.cjs",
+    "build": "esbuild src/index.ts --bundle --platform=node --format=cjs --target=node18 --alias:ws=./src/ws-shim.ts --outfile=dist/index.cjs"
+  }
+}

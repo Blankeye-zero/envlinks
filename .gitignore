@@ -24,6 +24,10 @@ nvim/.crush/
 __pycache__/
 *.pyc
 
+# --- node ----
+node_modules/
+dist/
+
 # --- backups ---
 *.bak
 *-bak-*/
