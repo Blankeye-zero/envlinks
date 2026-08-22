@@ -39,7 +39,7 @@ $ErrorActionPreference = "Continue"
 $general = @(
     # General dev tools
     "CoreyButler.NVMforWindows",
-    "OpenJS.NodeJS",
+    # Node.js is installed via nvm (see manual steps), not winget.
     "pnpm.pnpm",
     "Python.Python.3.13",
     "Obsidian.Obsidian",
@@ -114,6 +114,7 @@ if ($failed.Count) {
 
 Write-Host ""
 Write-Host "=== Manual steps (not winget-installable) ===" -ForegroundColor Yellow
+Write-Host "  Node.js           - nvm install 24.18.0; nvm use 24.18.0   (via nvm-windows, installed above)"
 Write-Host "  0xProto Font      - download from https://github.com/0xType/0xProto (install the Nerd Font Mono variant)"
 Write-Host "  Aseprite          - paid; download from https://www.aseprite.org/"
 Write-Host "  Flutter           - dart pub global activate flutter   (or install from https://flutter.dev)"

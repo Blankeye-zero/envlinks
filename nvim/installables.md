@@ -3,7 +3,7 @@
 > (add `-NvimOnly` to skip the general dev tools). Non-winget items remain manual (see script output).
 
 - nvm-windows - `winget install CoreyButler.NVMforWindows`
-- Node.js - `winget install OpenJS.NodeJS`
+- Node.js - via nvm: `nvm install 24.18.0` then `nvm use 24.18.0` (not winget)
 - pnpm - `winget install pnpm.pnpm`
 - Python 3.X - `winget install Python.Python.3.13`
 - 0xProto Font - Not in winget (download manually from GitHub)
