@@ -52,6 +52,7 @@ $general = @(
     "Google.DartSDK",
     "Neovim.Neovim",
     "charmbracelet.crush",
+    "Oven-sh.Bun",                 # required by build-pi.ps1 (binary build)
     "Kitware.CMake"
 )
 

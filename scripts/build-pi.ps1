@@ -1,14 +1,18 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-    Builds pi (https://github.com/earendil-works/pi) from source and generates a pi.cmd launcher.
+    Builds pi (https://github.com/earendil-works/pi) from source as a single binary
+    and generates a pi.cmd launcher pointing at it.
 
 .DESCRIPTION
     1. Clones (or updates) the pi repository from GitHub.
-    2. Verifies the active Node.js major version is 24.
+    2. Verifies the active Node.js major version is 24 (build toolchain requirement).
     3. Runs 'npm install'.
-    4. Runs 'npm run build'.
-    5. Generates a pi.cmd launcher pointing at the built CLI.
+    4. Runs 'npm run build' (Node dist).
+    5. Runs 'npm run build:binary' in packages/coding-agent (Bun-compiled pi.exe + assets).
+    6. Generates a pi.cmd launcher pointing at the built pi.exe.
+
+    Requires Bun (winget install Oven-sh.Bun).
 
 .EXAMPLE
     powershell -NoProfile -ExecutionPolicy Bypass -File .\build-pi.ps1
@@ -17,7 +21,6 @@
 param(
     [string]$RepoUrl           = "https://github.com/earendil-works/pi",
     [string]$InstallDir        = "C:\Users\User\Projects\pi",
-    [string]$NodeExe           = "C:\Users\User\AppData\Local\nvm\v24.18.0\node.exe",
     [string]$PiCmdPath         = "C:\Users\User\Projects\envlinks\pi.cmd",
     [int]   $RequiredNodeMajor = 24
 )
@@ -43,6 +46,7 @@ function Assert-Command {
 Assert-Command "git"
 Assert-Command "node"
 Assert-Command "npm"
+Assert-Command "bun"
 
 # Active Node.js major version must be 24 (used by npm install / npm run build).
 $nodeVersion = ((& node --version) | Out-String).Trim()
@@ -58,21 +62,7 @@ if ($nodeMajor -ne $RequiredNodeMajor) {
          "Run 'nvm use $($RequiredNodeMajor).18.0' (or install Node $RequiredNodeMajor) and try again."
 }
 Write-Host "[ok] Active Node.js: $nodeVersion" -ForegroundColor Green
-
-# The generated pi.cmd hard-codes $NodeExe, so make sure it exists and is Node 24.
-if (-not (Test-Path -LiteralPath $NodeExe)) {
-    Fail "Node executable not found: '$NodeExe'. Update the -NodeExe parameter."
-}
-try {
-    $exeVersion = ((& $NodeExe --version) | Out-String).Trim()
-    if ($exeVersion -match '^v?(\d+)\.' -and ([int]$matches[1]) -ne $RequiredNodeMajor) {
-        Write-Warning "pi.cmd node ($exeVersion) is not major version $RequiredNodeMajor."
-    }
-}
-catch {
-    Write-Warning "Could not verify '$NodeExe' version: $_"
-}
-Write-Host "[ok] pi.cmd node: $NodeExe" -ForegroundColor Green
+Write-Host "[ok] Bun: $(((& bun --version) | Out-String).Trim())" -ForegroundColor Green
 
 # ---------------------------------------------------------------------------
 # 2. Download / update pi
@@ -109,18 +99,29 @@ finally {
 }
 
 # ---------------------------------------------------------------------------
-# 4. Generate pi.cmd
+# 4. Build the Bun-compiled binary
 # ---------------------------------------------------------------------------
-$cliJs = Join-Path $InstallDir "packages\coding-agent\dist\cli.js"
-if (-not (Test-Path -LiteralPath $cliJs)) {
-    Write-Warning "Built CLI not found at '$cliJs'."
-    Write-Warning "If the build output moved, update the path inside the generated pi.cmd manually."
+Push-Location (Join-Path $InstallDir "packages\coding-agent")
+try {
+    Write-Host "Running: npm run build:binary"
+    npm run build:binary
+    if ($LASTEXITCODE -ne 0) { Fail "npm run build:binary failed." }
+}
+finally {
+    Pop-Location
 }
 
-# Same content as the known-good envlinks pi.cmd:
+# ---------------------------------------------------------------------------
+# 5. Generate pi.cmd
+# ---------------------------------------------------------------------------
+$piExe = Join-Path $InstallDir "packages\coding-agent\dist\pi.exe"
+if (-not (Test-Path -LiteralPath $piExe)) {
+    Fail "Built binary not found at '$piExe'."
+}
+
 #   @echo off
-#   "<NodeExe>" "<cliJs>" %*
-$cmdContent = "@echo off`r`n`"$NodeExe`" `"$cliJs`" %*`r`n"
+#   "<piExe>" %*
+$cmdContent = "@echo off`r`n`"$piExe`" %*`r`n"
 
 $PiCmdPath = [System.IO.Path]::GetFullPath($PiCmdPath)
 $piCmdDir  = Split-Path -Parent $PiCmdPath
@@ -134,4 +135,5 @@ Write-Host "[ok] Generated $PiCmdPath" -ForegroundColor Green
 Write-Host ""
 Write-Host "Build complete." -ForegroundColor Cyan
 Write-Host "  Repo:      $InstallDir"
+Write-Host "  Binary:    $piExe"
 Write-Host "  Launcher:  $PiCmdPath"
