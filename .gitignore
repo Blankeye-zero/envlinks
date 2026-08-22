@@ -1,0 +1,25 @@
+# --- Secrets & credentials (never commit) ---
+auth.json
+*.key
+*.pem
+
+# --- pi-agent state (live under ~/.pi/agent, not in this repo) ---
+# These exist in ~/.pi/agent but are listed here defensively in case
+# they ever get copied into the repo tree.
+pi-agent/auth.json
+pi-agent/sessions/
+pi-agent/logs/
+pi-agent/npm/
+pi-agent/trust.json
+pi-agent/models-store.json
+pi-agent/extensions.conf
+
+# --- extension runtime logs ---
+pi-agent/extensions/pi-permission-system/logs/
+
+# --- nvim local state ---
+nvim/.crush/
+
+# --- backups ---
+*.bak
+*-bak-*/
