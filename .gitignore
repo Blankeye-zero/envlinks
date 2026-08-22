@@ -20,6 +20,10 @@ pi-agent/extensions/pi-permission-system/logs/
 # --- nvim local state ---
 nvim/.crush/
 
+# --- python ---
+__pycache__/
+*.pyc
+
 # --- backups ---
 *.bak
 *-bak-*/

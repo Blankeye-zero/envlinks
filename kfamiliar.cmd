@@ -1,2 +1,2 @@
 @echo off
-python "%~dp0..\kfamiliar\typing_trainer.py" %*
+python "%~dp0kfamiliar\typing_trainer.py" %*

@@ -1,2 +1,2 @@
 @echo off
-python "%~dp0..\keepalive\keepalive.py" %*
+python "%~dp0keepalive\keepalive.py" %*
