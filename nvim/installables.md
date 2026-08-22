@@ -15,7 +15,7 @@
 - Aseprite - Not in winget (paid software, download from aseprite.org)
 - Neovim - `winget install Neovim.Neovim`
 - Crush Agent Harness - `winget install charmbracelet.crush`
-- Pi Agent Harness - `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-pi.ps1` (clones, builds from source, then generates pi.cmd; requires Node 24)
+- Pi Agent Harness - `powershell -NoProfile -ExecutionPolicy Bypass -File %USERPROFILE%\Projects\envlinks\scripts\build-pi.ps1` (clones, builds from source, then generates pi.cmd; requires Node 24)
 - vcpkg - `git clone https://github.com/Microsoft/vcpkg.git`
 - CMake - `winget install Kitware.CMake`
 
