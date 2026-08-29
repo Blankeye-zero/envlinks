@@ -6,24 +6,53 @@
  *
  * - Raw reasoning streams into the panel and is hidden from the main chat.
  * - /traces toggles the panel (expanded / collapsed).
- * - /modelsm picks a small model shown in the footer status line (informational
- *   only — no API calls are made to it).
+ * - Footer shows split token economics: one line per model used in the session
+ *   (labeled prime/worker via devflow config), usage attributed to the model
+ *   that produced each message.
  *
  * Note: TUI mode only.
  */
 
 import type { ExtensionAPI, ExtensionContext, ReadonlyFooterDataProvider, Theme } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, type TUI, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
+import { existsSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 
 // ---------------------------------------------------------------------------
-// Selected small model (informational only)
+// DevFlow model roles (prime = planning model, worker = execution model)
 // ---------------------------------------------------------------------------
 
-const DEFAULT_PROVIDER = "fireworks";
-const DEFAULT_MODEL_ID = "accounts/fireworks/models/deepseek-v4-flash";
+const DEVFLOW_CONFIG_PATH = join(homedir(), ".pi", "agent", "devflow.json");
 
-let selectedProvider = DEFAULT_PROVIDER;
-let selectedModelId = DEFAULT_MODEL_ID;
+interface DevflowRefs {
+  planner?: string;
+  worker?: string;
+}
+
+// Mirrors devflow.ts defaults; overridden by devflow.json and devflow:config events.
+let devflowRefs: DevflowRefs = {
+  planner: "anthropic/claude-fable-5",
+  worker: "fireworks/accounts/fireworks/models/kimi-k3",
+};
+
+function toRef(value: unknown): string | undefined {
+  const ref = value as { provider?: string; id?: string } | undefined;
+  return ref?.provider && ref?.id ? `${ref.provider}/${ref.id}` : undefined;
+}
+
+function loadDevflowRefs(): void {
+  try {
+    if (!existsSync(DEVFLOW_CONFIG_PATH)) return;
+    const raw = JSON.parse(readFileSync(DEVFLOW_CONFIG_PATH, "utf8")) as { planner?: unknown; worker?: unknown };
+    devflowRefs = {
+      planner: toRef(raw.planner) ?? devflowRefs.planner,
+      worker: toRef(raw.worker) ?? devflowRefs.worker,
+    };
+  } catch {
+    // keep current refs
+  }
+}
 
 // ---------------------------------------------------------------------------
 // State
@@ -33,13 +62,6 @@ let panelEnabled = false;
 let tuiRef: TUI | null = null;
 let themeRef: Theme | null = null;
 let reasoning = "";
-
-// Small-model usage counters (currently informational; no calls are made).
-let smallInputTokens = 0;
-let smallOutputTokens = 0;
-let smallCacheReadTokens = 0;
-let smallCacheWriteTokens = 0;
-let smallCost = 0;
 
 // ---------------------------------------------------------------------------
 // Panel component (widget below the editor)
@@ -107,28 +129,6 @@ function mountPanel(ctx: ExtensionContext): void {
   );
 }
 
-function findSelectedModel(ctx: ExtensionContext) {
-  const exact = ctx.modelRegistry.find(selectedProvider, selectedModelId);
-  if (exact) return exact;
-  const suffix = selectedModelId.split("/").pop();
-  return ctx.modelRegistry
-    .getAvailable()
-    .find((model) => model.provider === selectedProvider && suffix !== undefined && model.id.endsWith(`/${suffix}`));
-}
-
-function formatUsd(value: number | undefined): string {
-  return typeof value === "number" ? `$${value.toFixed(2)}` : "$?";
-}
-
-function costLabel(model: { cost?: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number } }): string {
-  const c = model.cost;
-  if (!c) return "$?/$?";
-  const parts = [`in ${formatUsd(c.input)}`, `out ${formatUsd(c.output)}`];
-  if (typeof c.cacheRead === "number" && c.cacheRead > 0) parts.push(`R ${formatUsd(c.cacheRead)}`);
-  if (typeof c.cacheWrite === "number" && c.cacheWrite > 0) parts.push(`W ${formatUsd(c.cacheWrite)}`);
-  return parts.join(" · ");
-}
-
 function formatTokens(count: number): string {
   if (count < 1000) return count.toString();
   if (count < 10000) return `${(count / 1000).toFixed(1)}k`;
@@ -168,8 +168,10 @@ function addUsage(totals: Totals, usage?: UsageLike): void {
 }
 
 /**
- * Renders pi's native footer (one pass over session usage) plus a small-model
- * line directly below the primary line, in the same left/right muted style.
+ * Renders pi's native footer with one usage line per model used in the session,
+ * attributing each message's usage to the model that produced it. Lines are
+ * labeled plan/worker from the devflow config, prime for the /model selection
+ * used in non-plan workloads.
  */
 class ReasoningFooter {
   constructor(
@@ -200,28 +202,47 @@ class ReasoningFooter {
     const ctx = this.ctx;
     const lines: string[] = [];
 
-    // One pass over session usage for the primary line.
-    const totals = createTotals();
-    let hitRate: number | undefined;
+    // Per-model usage totals, attributed to the model that produced each message.
+    type ModelTotals = Totals & { hitRate?: number };
+    const perModel = new Map<string, ModelTotals>();
+    const touch = (key: string): ModelTotals => {
+      let t = perModel.get(key);
+      if (!t) {
+        t = { ...createTotals() };
+        perModel.set(key, t);
+      }
+      return t;
+    };
+    const activeKey = ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : "no-model";
+    let lastKey = activeKey;
     for (const entry of ctx.sessionManager.getEntries()) {
-      const e = entry as { type: string; message?: { role?: string; usage?: UsageLike }; usage?: UsageLike };
+      const e = entry as {
+        type: string;
+        message?: { role?: string; provider?: string; model?: string; usage?: UsageLike };
+        usage?: UsageLike;
+      };
       if (e.type === "message") {
         const msg = e.message;
         if (msg?.role === "assistant") {
-          addUsage(totals, msg.usage);
+          const key = msg.provider && msg.model ? `${msg.provider}/${msg.model}` : lastKey;
+          const t = touch(key);
+          addUsage(t, msg.usage);
           const prompt = (msg.usage?.input ?? 0) + (msg.usage?.cacheRead ?? 0) + (msg.usage?.cacheWrite ?? 0);
-          if (prompt > 0) hitRate = ((msg.usage?.cacheRead ?? 0) / prompt) * 100;
+          if (prompt > 0) t.hitRate = ((msg.usage?.cacheRead ?? 0) / prompt) * 100;
+          lastKey = key;
         } else if (msg?.role === "toolResult" && msg.usage) {
-          addUsage(totals, msg.usage);
+          // Nested tool usage (e.g. sub-model calls) attributed to the calling model.
+          addUsage(touch(lastKey), msg.usage);
         }
       } else if (e.type === "branch_summary" || e.type === "compaction") {
-        addUsage(totals, e.usage);
+        addUsage(touch(lastKey), e.usage);
       }
     }
+    // Always show the active model, even before it has produced usage.
+    touch(activeKey);
 
-    const primary = ctx.model;
     const usage = ctx.getContextUsage();
-    const window = usage?.contextWindow ?? primary?.contextWindow ?? 0;
+    const window = usage?.contextWindow ?? ctx.model?.contextWindow ?? 0;
     const percent = usage?.percent != null ? usage.percent.toFixed(1) : "?";
 
     // cwd/branch/session line
@@ -232,49 +253,51 @@ class ReasoningFooter {
     if (sessionName) pwd = `${pwd} • ${sessionName}`;
     lines.push(truncateToWidth(th.fg("dim", pwd), width, th.fg("dim", "...")));
 
-    // Primary model line
-    const parts: string[] = [];
-    if (totals.input) parts.push(`↑${formatTokens(totals.input)}`);
-    if (totals.output) parts.push(`↓${formatTokens(totals.output)}`);
-    if (totals.cacheRead) parts.push(`R${formatTokens(totals.cacheRead)}`);
-    if (totals.cacheWrite) parts.push(`W${formatTokens(totals.cacheWrite)}`);
-    if ((totals.cacheRead > 0 || totals.cacheWrite > 0) && hitRate !== undefined) parts.push(`CH${hitRate.toFixed(1)}%`);
-    if (totals.cost) parts.push(`$${totals.cost.toFixed(3)}`);
-    const contextDisplay = percent === "?" ? `?/${formatTokens(window)}` : `${percent}%/${formatTokens(window)}`;
-    parts.push(`${contextDisplay} (auto)`);
+    // One usage line per model (insertion order = first use in session).
+    const providerCount = this.footerData.getAvailableProviderCount();
+    for (const [key, t] of perModel) {
+      const slash = key.indexOf("/");
+      const provider = slash >= 0 ? key.slice(0, slash) : key;
+      const id = slash >= 0 ? key.slice(slash + 1) : key;
+      const isActive = key === activeKey;
 
-    let primaryRight = primary?.id ?? "no-model";
-    if (primary?.reasoning) {
-      const level = ctx.thinkingLevel || "off";
-      primaryRight = level === "off" ? `${primaryRight} • thinking off` : `${primaryRight} • ${level}`;
+      const parts: string[] = [];
+      if (t.input) parts.push(`↑${formatTokens(t.input)}`);
+      if (t.output) parts.push(`↓${formatTokens(t.output)}`);
+      if (t.cacheRead) parts.push(`R${formatTokens(t.cacheRead)}`);
+      if (t.cacheWrite) parts.push(`W${formatTokens(t.cacheWrite)}`);
+      if ((t.cacheRead > 0 || t.cacheWrite > 0) && t.hitRate !== undefined) parts.push(`CH${t.hitRate.toFixed(1)}%`);
+      if (t.cost) parts.push(`$${t.cost.toFixed(3)}`);
+      if (isActive) {
+        const contextDisplay = percent === "?" ? `?/${formatTokens(window)}` : `${percent}%/${formatTokens(window)}`;
+        parts.push(`${contextDisplay} (auto)`);
+      }
+
+      // plan = devflow planner, worker = devflow worker, prime = the active
+      // /model selection for non-plan workloads, other = stale leftovers.
+      let label: string;
+      if (key === devflowRefs.planner) label = "plan";
+      else if (key === devflowRefs.worker) label = "worker";
+      else if (isActive) label = "prime";
+      else label = "other";
+
+      let right = id;
+      if (isActive && ctx.model?.reasoning) {
+        const level = ctx.thinkingLevel || "off";
+        right = level === "off" ? `${right} • thinking off` : `${right} • ${level}`;
+      }
+      if (providerCount > 1) right = `(${provider}) ${right}`;
+      lines.push(this.layout(parts.join(" "), `${label} • ${right}`, width));
     }
-    if (this.footerData.getAvailableProviderCount() > 1 && primary) {
-      primaryRight = `(${primary.provider}) ${primaryRight}`;
-    }
-    lines.push(this.layout(parts.join(" "), `prime • ${primaryRight}`, width));
 
-    // Small model line (tokens/cost left, model right), matches the line above.
-    const small = findSelectedModel(ctx);
-    if (small) {
-      const smallLeftParts = [`↑${formatTokens(smallInputTokens)}`, `↓${formatTokens(smallOutputTokens)}`];
-      if (smallCacheReadTokens) smallLeftParts.push(`R${formatTokens(smallCacheReadTokens)}`);
-      if (smallCacheWriteTokens) smallLeftParts.push(`W${formatTokens(smallCacheWriteTokens)}`);
-      smallLeftParts.push(`$${smallCost.toFixed(3)}`);
-
-      let smallRight = small.id;
-      if (small.reasoning) smallRight = `${smallRight} • thinking off`;
-      if (this.footerData.getAvailableProviderCount() > 1) smallRight = `(${small.provider}) ${smallRight}`;
-
-      lines.push(this.layout(smallLeftParts.join(" "), `small • ${smallRight}`, width));
-    }
-
-    // Remaining extension statuses.
+    // Remaining extension statuses, rendered as colored chips: devflow first,
+    // then the rest alphabetically, separated by a dim middot.
     const statuses = this.footerData.getExtensionStatuses();
     if (statuses.size > 0) {
-      const sorted = Array.from(statuses.entries())
-        .sort(([a], [b]) => a.localeCompare(b))
+      const chips = Array.from(statuses.entries())
+        .sort(([a], [b]) => (a === "devflow" ? -1 : b === "devflow" ? 1 : a.localeCompare(b)))
         .map(([, text]) => sanitizeStatusText(text));
-      lines.push(truncateToWidth(sorted.join(" "), width, th.fg("dim", "...")));
+      lines.push(truncateToWidth(chips.join(th.fg("dim", " · ")), width, th.fg("dim", "...")));
     }
 
     return lines;
@@ -292,31 +315,6 @@ function mountFooter(ctx: ExtensionContext): void {
   });
 }
 
-async function pickModel(ctx: ExtensionContext): Promise<void> {
-  if (!ctx.hasUI) {
-    ctx.ui.notify("Model picker requires an interactive UI.", "warning");
-    return;
-  }
-
-  const models = ctx.modelRegistry.getAvailable();
-  if (models.length === 0) {
-    ctx.ui.notify("No models are currently available.", "warning");
-    return;
-  }
-
-  const options = models.map((model) => `${model.name}  ·  ${costLabel(model)}  ·  ${model.id}`);
-  const choice = await ctx.ui.select("Small model", options);
-  if (!choice) return;
-
-  const model = models[options.indexOf(choice)];
-  if (!model) return;
-
-  selectedProvider = model.provider;
-  selectedModelId = model.id;
-  requestRender();
-  ctx.ui.notify(`Small model: ${model.provider}/${model.id}`, "info");
-}
-
 // ---------------------------------------------------------------------------
 // Extension
 // ---------------------------------------------------------------------------
@@ -330,6 +328,7 @@ export default function (pi: ExtensionAPI) {
 
   // Mount the panel (collapsed by default) and footer once the session/UI is ready.
   pi.on("session_start", (_event, ctx) => {
+    loadDevflowRefs();
     if (ctx.mode !== "tui") return;
     mountPanel(ctx);
     mountFooter(ctx);
@@ -355,11 +354,6 @@ export default function (pi: ExtensionAPI) {
     tuiRef = null;
     themeRef = null;
     reasoning = "";
-    smallInputTokens = 0;
-    smallOutputTokens = 0;
-    smallCacheReadTokens = 0;
-    smallCacheWriteTokens = 0;
-    smallCost = 0;
   });
 
   // Toggle command.
@@ -372,11 +366,12 @@ export default function (pi: ExtensionAPI) {
     },
   });
 
-  // Pick the small model shown in the footer.
-  pi.registerCommand("modelsm", {
-    description: "Pick the small model shown in the footer",
-    handler: async (_args, ctx) => {
-      await pickModel(ctx);
-    },
+  // Live devflow config updates (planner/worker labels in the footer).
+  pi.events.on("devflow:config", (cfg) => {
+    devflowRefs = {
+      planner: toRef((cfg as { planner?: unknown })?.planner) ?? devflowRefs.planner,
+      worker: toRef((cfg as { worker?: unknown })?.worker) ?? devflowRefs.worker,
+    };
+    requestRender();
   });
 }

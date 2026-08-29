@@ -13,6 +13,14 @@
       "rm -rf *": "deny",
       "sudo *": "ask"
     },
-    "external_directory": "ask"
-  }
+    "external_directory": "ask",
+    "powershell": {
+      "*": "allow",
+      "Remove-Item *-Recurse*-Force*": "ask",
+      "rm *-rfo*": "ask",
+      "del *": "ask",
+      "format *": "deny"
+    }
+  },
+  "yoloMode": false
 }
