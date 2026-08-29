@@ -17,6 +17,8 @@ pi-agent/extensions.conf
 # --- extension runtime logs ---
 pi-agent/extensions/pi-permission-system/logs/
 
+# --- agent files ---
+.pi/
 # --- nvim local state ---
 nvim/.crush/
 
