@@ -1,0 +1,105 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/earendil-works/envlinks/main/scripts/schemas/themepack-v1.schema.json",
+  "title": "envlinks themepack v1",
+  "description": "A URL-addressable colorscheme package for the envlinks trio (Windows Terminal, Neovim, pi agent). Explicit overrides win; anything missing is derived from the base16 palette. A themepack with only a palette is complete.",
+  "type": "object",
+  "required": ["name"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "URL of this schema (enables editor validation/autocomplete)."
+    },
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+$",
+      "description": "Unique slug; matches the installed filename scripts/themes/<name>.json."
+    },
+    "description": { "type": "string" },
+    "author": { "type": "string" },
+    "source": {
+      "type": "string",
+      "description": "Upstream URL (palette repo, nvim plugin repo, or the URL this pack was imported from)."
+    },
+    "palette": {
+      "type": "object",
+      "description": "base16 / Tinted Theming roles. Required unless nvim.spec, full pi theme, and full wt colors are all provided explicitly.",
+      "additionalProperties": false,
+      "required": [
+        "base00", "base01", "base02", "base03", "base04", "base05", "base06", "base07",
+        "base08", "base09", "base0A", "base0B", "base0C", "base0D", "base0E", "base0F"
+      ],
+      "properties": {
+        "base00": { "$ref": "#/definitions/hex" },
+        "base01": { "$ref": "#/definitions/hex" },
+        "base02": { "$ref": "#/definitions/hex" },
+        "base03": { "$ref": "#/definitions/hex" },
+        "base04": { "$ref": "#/definitions/hex" },
+        "base05": { "$ref": "#/definitions/hex" },
+        "base06": { "$ref": "#/definitions/hex" },
+        "base07": { "$ref": "#/definitions/hex" },
+        "base08": { "$ref": "#/definitions/hex" },
+        "base09": { "$ref": "#/definitions/hex" },
+        "base0A": { "$ref": "#/definitions/hex" },
+        "base0B": { "$ref": "#/definitions/hex" },
+        "base0C": { "$ref": "#/definitions/hex" },
+        "base0D": { "$ref": "#/definitions/hex" },
+        "base0E": { "$ref": "#/definitions/hex" },
+        "base0F": { "$ref": "#/definitions/hex" }
+      }
+    },
+    "nvim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["engine"],
+      "properties": {
+        "engine": {
+          "type": "string",
+          "enum": ["mini-base16", "plugin"],
+          "description": "mini-base16: generated colorscheme from the palette. plugin: full-fidelity nvim plugin spec (requires nvim.spec)."
+        },
+        "spec": {
+          "type": "string",
+          "description": "Full Lua plugin spec table written to nvim/lua/plugins/colorscheme.lua (required when engine=plugin)."
+        }
+      }
+    },
+    "pi": {
+      "type": "object",
+      "description": "pi agent theme overrides. Sparse colors are merged over palette-derived defaults; a full colors object with all 51 tokens is used as-is.",
+      "additionalProperties": false,
+      "properties": {
+        "vars": {
+          "type": "object",
+          "description": "Extra vars merged into the generated pi theme's vars (defaults to the palette)."
+        },
+        "colors": {
+          "type": "object",
+          "description": "Token -> color (hex, var name, 0-255 index, or \"\" for terminal default)."
+        }
+      }
+    },
+    "wt": {
+      "type": "object",
+      "description": "Windows Terminal scheme overrides merged over palette-derived defaults.",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Display name inside Windows Terminal (defaults to themepack name)."
+        },
+        "colors": {
+          "type": "object",
+          "description": "Sparse overrides for the 20 WT keys: background, foreground, cursorColor, selectionBackground, black, red, green, yellow, blue, purple, cyan, white, brightBlack, brightRed, brightGreen, brightYellow, brightBlue, brightPurple, brightCyan, brightWhite."
+        }
+      }
+    }
+  },
+  "definitions": {
+    "hex": {
+      "type": "string",
+      "pattern": "^#[0-9a-fA-F]{6}$"
+    }
+  }
+}

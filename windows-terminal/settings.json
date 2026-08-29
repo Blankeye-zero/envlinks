@@ -1,114 +1,205 @@
 {
-    "$help": "https://aka.ms/terminal-documentation",
-    "$schema": "https://aka.ms/terminal-profiles-schema",
-    "actions": [],
-    "copyFormatting": "none",
-    "copyOnSelect": false,
-    "defaultProfile": "{61c54bbd-c2c6-5271-96e7-009a87ff44bf}",
-    "keybindings": 
-    [
-        {
-            "id": "Terminal.CopyToClipboard",
-            "keys": "ctrl+c"
-        },
-        {
-            "id": "Terminal.FindText",
-            "keys": "ctrl+shift+f"
-        },
-        {
-            "id": "Terminal.PasteFromClipboard",
-            "keys": "ctrl+v"
-        },
-        {
-            "id": "Terminal.DuplicatePaneAuto",
-            "keys": "alt+shift+d"
-        }
-    ],
-    "newTabMenu": 
-    [
-        {
-            "type": "remainingProfiles"
-        }
-    ],
-    "profiles": 
-    {
-        "defaults": {},
-        "list": 
-        [
-            {
-                "commandline": "%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
-                "font": 
-                {
-                    "face": "0xProto Nerd Font Mono"
-                },
-                "guid": "{61c54bbd-c2c6-5271-96e7-009a87ff44bf}",
-                "hidden": false,
-                "name": "Windows PowerShell",
-                "colorScheme": "Catppuccin Macchiato"
-            },
-            {
-                "commandline": "%SystemRoot%\\System32\\cmd.exe",
-                "guid": "{0caa0dad-35be-5f56-a8ff-afceeeaa6101}",
-                "hidden": false,
-                "name": "Command Prompt"
-            },
-            {
-                "guid": "{b453ae62-4e3d-5e58-b989-0a998ec441b8}",
-                "hidden": false,
-                "name": "Azure Cloud Shell",
-                "source": "Windows.Terminal.Azure"
-            },
-            {
-                "guid": "{8eec6b49-9256-5506-baf4-251eae791924}",
-                "hidden": false,
-                "name": "Developer Command Prompt for VS 18",
-                "source": "Windows.Terminal.VisualStudio"
-            },
-            {
-                "guid": "{181d9c37-6e0b-54eb-a1b0-e8c33554eee4}",
-                "hidden": false,
-                "name": "Developer PowerShell for VS 18",
-                "source": "Windows.Terminal.VisualStudio"
-            },
-            {
-                "guid": "{2c4de342-38b7-51cf-b940-2309a097f518}",
-                "hidden": true,
-                "name": "Ubuntu",
-                "source": "Windows.Terminal.Wsl"
-            },
-            {
-                "guid": "{1d785bef-9d50-5514-8edd-1f8b07504664}",
-                "hidden": false,
-                "name": "Ubuntu",
-                "source": "Microsoft.WSL"
-            }
-        ]
-    },
-    "schemes": 
-    [
-        {
-            "name": "Catppuccin Macchiato",
-            "background": "#24273A",
-            "foreground": "#CAD3F5",
-            "black": "#494D64",
-            "red": "#ED8796",
-            "green": "#A6DA95",
-            "yellow": "#EED49F",
-            "blue": "#8AADF4",
-            "purple": "#C6A0F6",
-            "cyan": "#8BD5CA",
-            "white": "#B8C0E0",
-            "brightBlack": "#5B6078",
-            "brightRed": "#ED8796",
-            "brightGreen": "#A6DA95",
-            "brightYellow": "#EED49F",
-            "brightBlue": "#8AADF4",
-            "brightPurple": "#C6A0F6",
-            "brightCyan": "#8BD5CA",
-            "brightWhite": "#A5ADCB",
-            "cursorColor": "#F4DBD6",
-            "selectionBackground": "#5B6078"
-        }
-    ],
-    "themes": []
+    "$help":  "https://aka.ms/terminal-documentation",
+    "$schema":  "https://aka.ms/terminal-profiles-schema",
+    "actions":  [
+
+                ],
+    "copyFormatting":  "none",
+    "copyOnSelect":  false,
+    "defaultProfile":  "{61c54bbd-c2c6-5271-96e7-009a87ff44bf}",
+    "keybindings":  [
+                        {
+                            "id":  "Terminal.CopyToClipboard",
+                            "keys":  "ctrl+c"
+                        },
+                        {
+                            "id":  "Terminal.FindText",
+                            "keys":  "ctrl+shift+f"
+                        },
+                        {
+                            "id":  "Terminal.PasteFromClipboard",
+                            "keys":  "ctrl+v"
+                        },
+                        {
+                            "id":  "Terminal.DuplicatePaneAuto",
+                            "keys":  "alt+shift+d"
+                        }
+                    ],
+    "newTabMenu":  [
+                       {
+                           "type":  "remainingProfiles"
+                       }
+                   ],
+    "profiles":  {
+                     "defaults":  {
+                                      "colorScheme":  "Gruvbox dark, hard"
+                                  },
+                     "list":  [
+                                  {
+                                      "commandline":  "%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+                                      "font":  {
+                                                   "face":  "0xProto Nerd Font Mono"
+                                               },
+                                      "guid":  "{61c54bbd-c2c6-5271-96e7-009a87ff44bf}",
+                                      "hidden":  false,
+                                      "name":  "Windows PowerShell"
+                                  },
+                                  {
+                                      "commandline":  "%SystemRoot%\\System32\\cmd.exe",
+                                      "guid":  "{0caa0dad-35be-5f56-a8ff-afceeeaa6101}",
+                                      "hidden":  false,
+                                      "name":  "Command Prompt"
+                                  },
+                                  {
+                                      "guid":  "{b453ae62-4e3d-5e58-b989-0a998ec441b8}",
+                                      "hidden":  false,
+                                      "name":  "Azure Cloud Shell",
+                                      "source":  "Windows.Terminal.Azure"
+                                  },
+                                  {
+                                      "guid":  "{8eec6b49-9256-5506-baf4-251eae791924}",
+                                      "hidden":  false,
+                                      "name":  "Developer Command Prompt for VS 18",
+                                      "source":  "Windows.Terminal.VisualStudio"
+                                  },
+                                  {
+                                      "guid":  "{181d9c37-6e0b-54eb-a1b0-e8c33554eee4}",
+                                      "hidden":  false,
+                                      "name":  "Developer PowerShell for VS 18",
+                                      "source":  "Windows.Terminal.VisualStudio"
+                                  },
+                                  {
+                                      "guid":  "{2c4de342-38b7-51cf-b940-2309a097f518}",
+                                      "hidden":  true,
+                                      "name":  "Ubuntu",
+                                      "source":  "Windows.Terminal.Wsl"
+                                  },
+                                  {
+                                      "guid":  "{1d785bef-9d50-5514-8edd-1f8b07504664}",
+                                      "hidden":  false,
+                                      "name":  "Ubuntu",
+                                      "source":  "Microsoft.WSL"
+                                  }
+                              ]
+                 },
+    "schemes":  [
+                    {
+                        "name":  "Catppuccin Macchiato",
+                        "background":  "#24273A",
+                        "foreground":  "#CAD3F5",
+                        "cursorColor":  "#F4DBD6",
+                        "selectionBackground":  "#5B6078",
+                        "black":  "#494D64",
+                        "red":  "#ED8796",
+                        "green":  "#A6DA95",
+                        "yellow":  "#EED49F",
+                        "blue":  "#8AADF4",
+                        "purple":  "#C6A0F6",
+                        "cyan":  "#8BD5CA",
+                        "white":  "#B8C0E0",
+                        "brightBlack":  "#5B6078",
+                        "brightRed":  "#ED8796",
+                        "brightGreen":  "#A6DA95",
+                        "brightYellow":  "#EED49F",
+                        "brightBlue":  "#8AADF4",
+                        "brightPurple":  "#C6A0F6",
+                        "brightCyan":  "#8BD5CA",
+                        "brightWhite":  "#A5ADCB"
+                    },
+                    {
+                        "name":  "Tokyo Night Storm",
+                        "background":  "#24283b",
+                        "foreground":  "#a9b1d6",
+                        "cursorColor":  "#a9b1d6",
+                        "selectionBackground":  "#343a52",
+                        "black":  "#24283b",
+                        "red":  "#c0caf5",
+                        "green":  "#9ece6a",
+                        "yellow":  "#0db9d7",
+                        "blue":  "#2ac3de",
+                        "purple":  "#bb9af7",
+                        "cyan":  "#b4f9f8",
+                        "white":  "#a9b1d6",
+                        "brightBlack":  "#444b6a",
+                        "brightRed":  "#a9b1d6",
+                        "brightGreen":  "#9ece6a",
+                        "brightYellow":  "#0db9d7",
+                        "brightBlue":  "#2ac3de",
+                        "brightPurple":  "#bb9af7",
+                        "brightCyan":  "#b4f9f8",
+                        "brightWhite":  "#d5d6db"
+                    },
+                    {
+                        "name":  "Gruvbox dark, hard",
+                        "background":  "#1d2021",
+                        "foreground":  "#d5c4a1",
+                        "cursorColor":  "#d5c4a1",
+                        "selectionBackground":  "#504945",
+                        "black":  "#1d2021",
+                        "red":  "#fb4934",
+                        "green":  "#b8bb26",
+                        "yellow":  "#fabd2f",
+                        "blue":  "#83a598",
+                        "purple":  "#d3869b",
+                        "cyan":  "#8ec07c",
+                        "white":  "#d5c4a1",
+                        "brightBlack":  "#665c54",
+                        "brightRed":  "#fe8019",
+                        "brightGreen":  "#b8bb26",
+                        "brightYellow":  "#fabd2f",
+                        "brightBlue":  "#83a598",
+                        "brightPurple":  "#d3869b",
+                        "brightCyan":  "#8ec07c",
+                        "brightWhite":  "#fbf1c7"
+                    },
+                    {
+                        "name":  "Gruvbox dark",
+                        "background":  "#282828",
+                        "foreground":  "#ebdbb2",
+                        "cursorColor":  "#ebdbb2",
+                        "selectionBackground":  "#504945",
+                        "black":  "#282828",
+                        "red":  "#cc241d",
+                        "green":  "#98971a",
+                        "yellow":  "#d79921",
+                        "blue":  "#458588",
+                        "purple":  "#b16286",
+                        "cyan":  "#689d6a",
+                        "white":  "#ebdbb2",
+                        "brightBlack":  "#665c54",
+                        "brightRed":  "#d65d0e",
+                        "brightGreen":  "#98971a",
+                        "brightYellow":  "#d79921",
+                        "brightBlue":  "#458588",
+                        "brightPurple":  "#b16286",
+                        "brightCyan":  "#689d6a",
+                        "brightWhite":  "#f9f5d7"
+                    },
+                    {
+                        "name":  "Nord",
+                        "background":  "#2e3440",
+                        "foreground":  "#e5e9f0",
+                        "cursorColor":  "#e5e9f0",
+                        "selectionBackground":  "#434c5e",
+                        "black":  "#2e3440",
+                        "red":  "#bf616a",
+                        "green":  "#a3be8c",
+                        "yellow":  "#ebcb8b",
+                        "blue":  "#81a1c1",
+                        "purple":  "#b48ead",
+                        "cyan":  "#88c0d0",
+                        "white":  "#e5e9f0",
+                        "brightBlack":  "#4c566a",
+                        "brightRed":  "#d08770",
+                        "brightGreen":  "#a3be8c",
+                        "brightYellow":  "#ebcb8b",
+                        "brightBlue":  "#81a1c1",
+                        "brightPurple":  "#b48ead",
+                        "brightCyan":  "#88c0d0",
+                        "brightWhite":  "#8fbcbb"
+                    }
+                ],
+    "themes":  [
+
+               ]
 }
