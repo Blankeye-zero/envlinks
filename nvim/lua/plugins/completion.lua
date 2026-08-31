@@ -12,8 +12,8 @@ return {
         -- jump between snippet placeholders with Ctrl+h / Ctrl+l
         ["<C-h>"] = { "snippet_backward", "fallback" },
         ["<C-l>"] = { "snippet_forward", "fallback" },
-        -- Enter accepts the selected suggestion
-        ["<CR>"] = { "accept", "fallback" },
+        -- Tab accepts the selected suggestion
+        ["<Tab>"] = { "accept", "fallback" },
       },
       appearance = {
         use_nvim_cmp_as_default = true,
