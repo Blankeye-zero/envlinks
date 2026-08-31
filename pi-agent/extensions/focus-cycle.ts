@@ -1,12 +1,14 @@
 /**
  * Focus Cycle — Tab-driven focus rotation:
  *
- *   input area ──[tab]──▶ chat history ──[tab]──▶ reasoning traces ──[tab]──▶ input area
+ *   input area ──[tab]──▶ chat history ──[tab]──▶ reasoning traces ──[tab]──▶ notes ──[tab]──▶ input area
  *
  * - Press [Tab] in the *empty* input editor to enter browse mode on the chat panel.
  *   (When the editor has text, Tab keeps its normal autocomplete behavior.)
  * - Peruse with vim keys: j/k (or arrows) scroll, ctrl+d/u half-page, g/G top/bottom.
- * - [Tab] cycles chat → reasoning → back to the input area. h/l also switch panels.
+ * - [Tab] cycles chat → reasoning → notes → back to the input area (shift+tab reverses).
+ *   h/l also switch panels. The notes panel shows the workspace's .pi/notes.md
+ *   (read-only viewer; manage via /notes, quick-add via /note <text>).
  * - [Esc] or q returns to the input area from anywhere.
  *
  * Keys while browsing:
@@ -18,10 +20,11 @@
  *   | pageDown/pageUp   | half-page down/up                       |
  *   | g / G, home/end   | top / bottom (re-pin to latest)         |
  *   | h / l             | switch to chat / reasoning panel        |
- *   | tab               | next panel (reasoning → input area)     |
+ *   | tab / shift+tab   | next / previous panel (notes → input)   |
+ *   | r                 | refresh current panel                   |
  *   | esc / q / ctrl+c  | back to input area                      |
  *
- * Also provides the /browse command (optional argument: "chat" or "reasoning").
+ * Also provides the /browse command (optional argument: "chat", "reasoning", or "notes").
  *
  * Notes:
  * - The browser is a full-screen overlay rebuilt from the session, so it works in
@@ -37,11 +40,16 @@ import {
 	matchesKey,
 	truncateToWidth,
 	visibleWidth,
+	wrapTextWithAnsi,
 	type Component,
 	type TUI,
 } from "@earendil-works/pi-tui";
+import { readNotes } from "./notepad.ts";
 
-type Panel = "chat" | "reasoning";
+type Panel = "chat" | "reasoning" | "notes";
+
+/** Tab cycle order; the final next/prev step returns to the input area. */
+const PANELS: Panel[] = ["chat", "reasoning", "notes"];
 
 /** Minimal structural typing over pi-ai content blocks. */
 interface ContentPart {
@@ -129,11 +137,21 @@ export class BrowserComponent implements Component {
 	}
 
 	private nextPanel(): void {
-		if (this.panel === "chat") {
-			this.setPanel("reasoning");
-		} else {
+		const idx = PANELS.indexOf(this.panel);
+		if (idx >= PANELS.length - 1) {
 			this.onClose();
+			return;
 		}
+		this.setPanel(PANELS[idx + 1] ?? "chat");
+	}
+
+	private prevPanel(): void {
+		const idx = PANELS.indexOf(this.panel);
+		if (idx <= 0) {
+			this.onClose();
+			return;
+		}
+		this.setPanel(PANELS[idx - 1] ?? "chat");
 	}
 
 	handleInput(data: string): void {
@@ -141,6 +159,8 @@ export class BrowserComponent implements Component {
 
 		if (matchesKey(data, "tab")) {
 			this.nextPanel();
+		} else if (matchesKey(data, "shift+tab")) {
+			this.prevPanel();
 		} else if (matchesKey(data, "escape") || matchesKey(data, "ctrl+c") || data === "q") {
 			this.onClose();
 			return;
@@ -165,6 +185,8 @@ export class BrowserComponent implements Component {
 			this.scrollTop = 0;
 		} else if (data === "G" || matchesKey(data, "end")) {
 			this.follow = true;
+		} else if (data === "r") {
+			this.dirty = true; // manual refresh (e.g. notes file edited externally)
 		} else {
 			return; // ignore everything else while browsing
 		}
@@ -175,7 +197,12 @@ export class BrowserComponent implements Component {
 		if (!this.dirty && this.cache && this.cache.width === width && this.cache.panel === this.panel) {
 			return this.cache.lines;
 		}
-		const lines = this.panel === "chat" ? this.buildChat(width) : this.buildReasoning(width);
+		const lines =
+			this.panel === "chat"
+				? this.buildChat(width)
+				: this.panel === "reasoning"
+					? this.buildReasoning(width)
+					: this.buildNotes(width);
 		this.cache = { panel: this.panel, width, lines };
 		this.dirty = false;
 		return lines;
@@ -336,11 +363,33 @@ export class BrowserComponent implements Component {
 		return out;
 	}
 
+	private buildNotes(width: number): string[] {
+		const t = this.theme;
+		const out: string[] = [];
+		const inner = Math.max(8, width - 2);
+		const raw = readNotes(this.ctx.cwd).trim();
+
+		if (!raw) {
+			out.push("");
+			out.push(t.fg("dim", "  No notes yet."));
+			out.push(t.fg("dim", "  Add one with /note <text>, or manage with /notes"));
+			return out;
+		}
+
+		out.push("");
+		for (const line of raw.split("\n")) {
+			for (const wrapped of wrapTextWithAnsi(line, inner)) {
+				out.push(truncateToWidth(wrapped, width));
+			}
+		}
+		return out;
+	}
+
 	private renderHeader(width: number): string {
 		const t = this.theme;
 		const tab = (label: string, active: boolean) =>
 			active ? t.bg("selectedBg", t.bold(` ${label} `)) : t.fg("dim", ` ${label} `);
-		const line = ` ${tab("chat", this.panel === "chat")} ${tab("reasoning", this.panel === "reasoning")}`;
+		const line = ` ${tab("chat", this.panel === "chat")} ${tab("reasoning", this.panel === "reasoning")} ${tab("notes", this.panel === "notes")}`;
 		const pad = Math.max(0, width - visibleWidth(line));
 		return line + " ".repeat(pad);
 	}
@@ -367,10 +416,11 @@ export class BrowserComponent implements Component {
 					? "end"
 					: `${Math.round((this.scrollTop / maxScroll) * 100)}%`;
 		const status = t.fg("dim", ` ${lines.length} lines · ${pct}`);
-		const help = t.fg(
-			"dim",
-			"  j/k scroll · ctrl+j/k half-page · g/G top/bottom · h/l panel · tab next · esc/q input",
-		);
+		const helpText =
+			this.panel === "notes"
+				? "  j/k scroll · g/G top/bottom · tab next · r refresh · /notes manage · esc/q input"
+				: "  j/k scroll · ctrl+j/k half-page · g/G top/bottom · h/l chat/reasoning · tab next · esc/q input";
+		const help = t.fg("dim", helpText);
 
 		return [this.renderHeader(cols), sep, ...body, sep, status + help].map((l) => truncateToWidth(l, cols));
 	}
@@ -378,6 +428,10 @@ export class BrowserComponent implements Component {
 
 export default function (pi: ExtensionAPI) {
 	let browsing = false;
+	// True while any extension UI prompt is open (select/confirm/input/editor/custom).
+	// Guarded so Tab inside a dialog (e.g. the /notes editor) doesn't open the
+	// browser overlay on top and invisibly steal the dialog's keyboard focus.
+	let promptActive = false;
 	let activeBrowser: BrowserComponent | undefined;
 	let unsubscribeInput: (() => void) | undefined;
 
@@ -414,6 +468,8 @@ export default function (pi: ExtensionAPI) {
 		unsubscribeInput = ctx.ui.onTerminalInput((data) => {
 			// While the browser overlay is open it owns the keyboard.
 			if (browsing) return undefined;
+			// A dialog/prompt is open → leave its keys alone.
+			if (promptActive) return undefined;
 			if (!matchesKey(data, "tab")) return undefined;
 			// Editor has content → keep Tab as autocomplete.
 			if (ctx.ui.getEditorText().length > 0) return undefined;
@@ -430,18 +486,30 @@ export default function (pi: ExtensionAPI) {
 		browsing = false;
 	});
 
+	// Track extension UI prompts (coalesced outer span) for the Tab guard above.
+	pi.on("ui_prompt_start", () => {
+		promptActive = true;
+	});
+	pi.on("ui_prompt_end", () => {
+		promptActive = false;
+	});
+
 	// Live-refresh the browser while the agent streams.
 	pi.on("message_end", () => activeBrowser?.refresh());
 	pi.on("tool_execution_end", () => activeBrowser?.refresh());
 
+	// Live-refresh the notes panel when notepad.ts appends a note via /note.
+	pi.events.on("notepad:changed", () => activeBrowser?.refresh());
+
 	pi.registerCommand("browse", {
-		description: "Browse chat history and reasoning traces (hjkl scroll, tab cycles panels)",
+		description: "Browse chat history, reasoning traces, and workspace notes (hjkl scroll, tab cycles panels)",
 		getArgumentCompletions: (prefix) => {
-			const items = ["chat", "reasoning"].filter((v) => v.startsWith(prefix));
+			const items = ["chat", "reasoning", "notes"].filter((v) => v.startsWith(prefix));
 			return items.length > 0 ? items.map((v) => ({ value: v, label: v })) : null;
 		},
 		handler: async (args, ctx) => {
-			const panel: Panel = args.trim() === "reasoning" ? "reasoning" : "chat";
+			const arg = args.trim();
+			const panel: Panel = arg === "reasoning" ? "reasoning" : arg === "notes" ? "notes" : "chat";
 			await openBrowser(ctx, panel);
 		},
 	});
