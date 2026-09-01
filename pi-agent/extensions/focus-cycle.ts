@@ -8,7 +8,9 @@
  * - Peruse with vim keys: j/k (or arrows) scroll, ctrl+d/u half-page, g/G top/bottom.
  * - [Tab] cycles chat → reasoning → notes → back to the input area (shift+tab reverses).
  *   h/l also switch panels. The notes panel shows the workspace's .pi/notes.md
- *   (read-only viewer; manage via /notes, quick-add via /note <text>).
+ *   (read-only viewer; struck ~~notes~~ render struck-through and dimmed,
+ *   !high/!med/!low priority tags highlighted red/yellow/dim).
+ *   Manage via /notes, /strike <n>, /priority <n> <level>, /sort; quick-add via /note <text>.
  * - [Esc] or q returns to the input area from anywhere.
  *
  * Keys while browsing:
@@ -44,7 +46,7 @@ import {
 	type Component,
 	type TUI,
 } from "@earendil-works/pi-tui";
-import { readNotes } from "./notepad.ts";
+import { parseNotes, readNotes } from "./notepad.ts";
 
 type Panel = "chat" | "reasoning" | "notes";
 
@@ -368,18 +370,39 @@ export class BrowserComponent implements Component {
 		const out: string[] = [];
 		const inner = Math.max(8, width - 2);
 		const raw = readNotes(this.ctx.cwd).trim();
+		const notes = parseNotes(raw);
 
-		if (!raw) {
+		if (notes.length === 0) {
 			out.push("");
-			out.push(t.fg("dim", "  No notes yet."));
-			out.push(t.fg("dim", "  Add one with /note <text>, or manage with /notes"));
+			if (!raw) {
+				out.push(t.fg("dim", "  No notes yet."));
+				out.push(t.fg("dim", "  Add one with /note <text>, or manage with /notes"));
+			} else {
+				// Hand-written content that doesn't match the numbered format — show raw.
+				for (const line of raw.split("\n")) {
+					for (const wrapped of wrapTextWithAnsi(line, inner)) {
+						out.push(truncateToWidth(wrapped, width));
+					}
+				}
+			}
 			return out;
 		}
 
 		out.push("");
-		for (const line of raw.split("\n")) {
-			for (const wrapped of wrapTextWithAnsi(line, inner)) {
-				out.push(truncateToWidth(wrapped, width));
+		for (const note of notes) {
+			const lines = note.lines.map((l, i) => (i === 0 ? `${note.number}. ${l}` : `  ${l}`));
+			// Highlight the priority tag on active notes (struck stay dim+struck).
+			if (!note.struck && note.priority) {
+				const color: "error" | "warning" | "dim" =
+					note.priority === "high" ? "error" : note.priority === "med" ? "warning" : "dim";
+				lines[0] = (lines[0] ?? "").replace(/!(high|med|low)\b/i, (m) => t.fg(color, m));
+			}
+			for (const line of lines) {
+				for (const wrapped of wrapTextWithAnsi(line, inner)) {
+					out.push(
+						truncateToWidth(note.struck ? t.strikethrough(t.fg("dim", wrapped)) : wrapped, width),
+					);
+				}
 			}
 		}
 		return out;
@@ -418,7 +441,7 @@ export class BrowserComponent implements Component {
 		const status = t.fg("dim", ` ${lines.length} lines · ${pct}`);
 		const helpText =
 			this.panel === "notes"
-				? "  j/k scroll · g/G top/bottom · tab next · r refresh · /notes manage · esc/q input"
+				? "  j/k scroll · g/G · tab next · r refresh · /notes · /strike n · /sort · esc/q"
 				: "  j/k scroll · ctrl+j/k half-page · g/G top/bottom · h/l chat/reasoning · tab next · esc/q input";
 		const help = t.fg("dim", helpText);
 
