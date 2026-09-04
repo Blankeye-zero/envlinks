@@ -6,7 +6,15 @@
       "*.env": "deny",
       "*.env.*": "deny",
       "*.*.env": "deny",
-      "*.env.example": "allow"
+      "*.env.example": "allow",
+      "*node_modules": {
+        "action": "deny",
+        "reason": "node_modules is installed dependency output, not project source"
+      },
+      "*node_modules/*": {
+        "action": "deny",
+        "reason": "node_modules is installed dependency output, not project source"
+      }
     },
     "bash": {
       "*": "ask",
