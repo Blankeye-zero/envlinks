@@ -18,7 +18,12 @@
 
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { AssistantMessage, TextContent } from "@earendil-works/pi-ai";
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type {
+	CustomEntry,
+	ExtensionAPI,
+	ExtensionCommandContext,
+	ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
 import { Key } from "@earendil-works/pi-tui";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -168,6 +173,35 @@ function getTextContent(message: AssistantMessage): string {
 		.filter((block): block is TextContent => block.type === "text")
 		.map((block) => block.text)
 		.join("\n");
+}
+
+/**
+ * Extract the plan text from the most recent assistant message that contains
+ * a "Plan:" header. Falls back to the most recent non-empty assistant message.
+ * Returns undefined when no assistant message is present.
+ */
+function extractPlanText(messages: AgentMessage[]): string | undefined {
+	let lastAny: string | undefined;
+	for (let i = messages.length - 1; i >= 0; i--) {
+		const m = messages[i];
+		if (!isAssistantMessage(m)) continue;
+		const text = getTextContent(m).trim();
+		if (!text) continue;
+		if (lastAny === undefined) lastAny = text;
+		if (/(^|\n)\s*(#+\s*)?Plan:/i.test(text)) return text;
+	}
+	return lastAny;
+}
+
+/**
+ * Pull assistant messages (in order) from the current session branch so a
+ * command handler can locate the plan without waiting for an agent_end event.
+ */
+function branchAssistantMessages(ctx: ExtensionContext): AgentMessage[] {
+	return ctx.sessionManager
+		.getBranch()
+		.map((e) => (e.type === "message" ? e.message : undefined))
+		.filter((m): m is AgentMessage => m !== undefined);
 }
 
 export default function devFlowExtension(pi: ExtensionAPI): void {
@@ -333,6 +367,97 @@ Execute the plan step by step:
 		);
 	}
 
+	/**
+	 * Hand the plan off to the worker model in a brand-new session whose only
+	 * context is the plan plus the execution instructions.
+	 *
+	 * The new session's extension instance starts fresh (phase "idle"), so we
+	 * record a "pending execute" custom entry in `setup` and let the new
+	 * instance's `before_agent_start` handler pick it up, switch to the worker
+	 * model, and enter the executing phase before the first turn runs.
+	 *
+	 * `ctx` must be a command context (it has `newSession`); event-handler
+	 * contexts do not.
+	 */
+	async function executeInNewSession(ctx: ExtensionCommandContext, planText: string): Promise<void> {
+		const parentSession = ctx.sessionManager.getSessionFile();
+		const kickoff = `[DEVFLOW: EXECUTION HANDOVER — NEW SESSION]
+The plan below was produced by the planning model in a previous session. You are the worker model with full tool access. This session contains only the plan — execute it from scratch.
+
+${planText}
+
+Execute the plan step by step:
+- Follow the numbered steps in order.
+- Verify each change (build/tests/reads) before moving on.
+- If a step is impossible or wrong, say so and adapt minimally — do not redesign the plan.
+- When all steps are done, summarize what was changed.`;
+
+		const result = await ctx.newSession({
+			parentSession,
+			setup: async (sm) => {
+				// Signal the new extension instance to enter the executing phase
+				// and apply the worker model before its first agent turn. The
+				// new instance's session_start has already fired (empty), so
+				// before_agent_start is what reads this.
+				sm.appendCustomEntry("devflow", { phase: "executing", pendingExecute: true });
+			},
+			withSession: async (replacementCtx) => {
+				// Triggering the turn fires before_agent_start in the new
+				// instance, which applies the worker model, then the worker
+				// executes the plan.
+				await replacementCtx.sendUserMessage(kickoff);
+			},
+		});
+
+		if (result.cancelled) {
+			ctx.ui.notify("devflow: new-session handover was cancelled.", "info");
+		}
+	}
+
+	/**
+	 * Locate the plan in the current branch and prompt the user to hand it off
+	 * to the worker model — either in this session or in a fresh session that
+	 * contains only the plan. Used by both the /confirm command and the
+	 * agent_end auto-prompt.
+	 */
+	async function confirmHandover(ctx: ExtensionCommandContext): Promise<void> {
+		if (phase !== "planning") {
+			ctx.ui.notify(
+				"devflow: not in planning phase. Run /plan first and have the planner produce a Plan:.",
+				"warning",
+			);
+			return;
+		}
+
+		const planText = extractPlanText(branchAssistantMessages(ctx));
+		if (!planText) {
+			ctx.ui.notify("devflow: no plan found in the conversation yet.", "warning");
+			return;
+		}
+
+		const choice = await ctx.ui.select(
+			`DevFlow — confirm plan handover to ${refLabel(config.worker)}?`,
+			[
+				"Start in a new session (only the plan in context)",
+				"Continue in this session (full context)",
+				"Refine the plan",
+				"Cancel",
+			],
+		);
+
+		if (choice === "Start in a new session (only the plan in context)") {
+			await executeInNewSession(ctx, planText);
+		} else if (choice === "Continue in this session (full context)") {
+			await startExecution(ctx);
+		} else if (choice === "Refine the plan") {
+			const refinement = await ctx.ui.editor("Refine the plan:", "");
+			if (refinement?.trim()) {
+				pi.sendUserMessage(refinement.trim(), { deliverAs: "followUp" });
+			}
+		}
+		// "Cancel" -> do nothing
+	}
+
 	// ---------- commands & shortcuts ----------
 
 	pi.registerCommand("devflow", {
@@ -407,6 +532,13 @@ Execute the plan step by step:
 		},
 	});
 
+	pi.registerCommand("confirm", {
+		description: "Confirm the devflow plan and hand off to the worker model",
+		handler: async (_args, ctx) => {
+			await confirmHandover(ctx);
+		},
+	});
+
 	pi.registerShortcut(Key.ctrlAlt("d"), {
 		description: "Toggle devflow planning phase",
 		handler: async (ctx) => {
@@ -436,12 +568,12 @@ Execute the plan step by step:
 
 	// ---------- context shaping ----------
 
-	pi.on("before_agent_start", async () => {
-		if (phase !== "planning") return;
-		return {
-			message: {
-				customType: "devflow-planning-context",
-				content: `[DEVFLOW: PLANNING PHASE]
+	pi.on("before_agent_start", async (_event, ctx) => {
+		if (phase === "planning") {
+			return {
+				message: {
+					customType: "devflow-planning-context",
+					content: `[DEVFLOW: PLANNING PHASE]
 You are the planning model. Your job is to research the codebase and produce an implementation plan for the worker model to execute. Do NOT make any changes.
 
 Rules:
@@ -457,9 +589,27 @@ Plan:
 ...
 
 Each step must be concrete enough for a less capable model to execute without re-doing the research: name files, functions, and the exact intent of each change.`,
-				display: false,
-			},
-		};
+					display: false,
+				},
+			};
+		}
+
+		// New-session handover: the plan was confirmed in another session and
+		// this fresh session was created with a "pending execute" marker. Enter
+		// the executing phase and apply the worker model before the first turn.
+		if (phase === "idle") {
+			const entries = ctx.sessionManager.getEntries();
+			const marker = entries
+				.filter((e): e is CustomEntry => e.type === "custom" && (e as { customType?: string }).customType === "devflow")
+				.pop();
+			const data = marker?.data as { pendingExecute?: boolean } | undefined;
+			if (data?.pendingExecute) {
+				phase = "executing";
+				updateStatus(ctx);
+				persistState();
+				await applyModel(config.worker, ctx);
+			}
+		}
 	});
 
 	// Drop stale planning instructions from context once out of planning
@@ -482,12 +632,15 @@ Each step must be concrete enough for a less capable model to execute without re
 		const text = getTextContent(lastAssistant);
 		if (!/(^|\n)\s*(#+\s*)?Plan:/i.test(text)) return; // no plan produced yet, keep planning
 
-		const choice = await ctx.ui.select(`DevFlow — plan ready. Execute with ${refLabel(config.worker)}?`, [
-			"Execute plan with worker model",
-			"Refine the plan",
-			"Stay in planning phase",
-			"Abandon (restore previous model)",
-		]);
+		const choice = await ctx.ui.select(
+			`DevFlow — plan ready. Execute with ${refLabel(config.worker)}? (run /confirm to also start in a new session)`,
+			[
+				"Execute plan with worker model",
+				"Refine the plan",
+				"Stay in planning phase",
+				"Abandon (restore previous model)",
+			],
+		);
 
 		if (choice === "Execute plan with worker model") {
 			await startExecution(ctx);
