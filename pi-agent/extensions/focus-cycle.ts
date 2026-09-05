@@ -10,7 +10,7 @@
  *   h/l also switch panels. The notes panel shows the workspace's .pi/notes.md
  *   (read-only viewer; struck ~~notes~~ render struck-through and dimmed,
  *   !high/!med/!low priority tags highlighted red/yellow/dim).
- *   Manage via /notes, /strike <n>, /priority <n> <level>, /sort; quick-add via /note <text>.
+ *   Manage via /notes; quick-add via /note <text>.
  * - [Esc] or q returns to the input area from anywhere.
  *
  * Keys while browsing:
@@ -103,7 +103,7 @@ function summarizeArgs(args: unknown): string {
 	return s.length > 80 ? `${s.slice(0, 77)}…` : s;
 }
 
-export class BrowserComponent implements Component {
+class BrowserComponent implements Component {
 	private panel: Panel;
 	private scrollTop = 0;
 	/** Stick to the bottom (latest content) until the user scrolls up. */
@@ -441,7 +441,7 @@ export class BrowserComponent implements Component {
 		const status = t.fg("dim", ` ${lines.length} lines · ${pct}`);
 		const helpText =
 			this.panel === "notes"
-				? "  j/k scroll · g/G · tab next · r refresh · /notes · /strike n · /sort · esc/q"
+				? "  j/k scroll · g/G · tab next · r refresh · /notes · esc/q"
 				: "  j/k scroll · ctrl+j/k half-page · g/G top/bottom · h/l chat/reasoning · tab next · esc/q input";
 		const help = t.fg("dim", helpText);
 
