@@ -21,21 +21,17 @@
  * Viewing: focus-cycle.ts renders a read-only "notes" panel in its Tab cycle
  * (input → chat → reasoning → notes → input) using the helpers below.
  * Managing: the /notes command opens a type-to-filter picker with
- * edit/delete/add operations. Every mutation emits "notepad:changed" on
+ * edit/priority/strike/delete/add. Every mutation emits "notepad:changed" on
  * pi.events so a browsing notes panel refreshes live (same pattern as
  * devflow:config → reasoning-panel).
  *
  * Commands:
  *   /note <text>   Append <text> as the next numbered note (quotes optional).
  *   /notes         Manage notes: type to filter, then edit/priority/strike/delete.
- *   /strike <n>    Toggle strikethrough on note n.
- *   /priority <n> <high|med|low|none>   Set or clear a note's priority tag.
- *   /sort          Active notes first by priority (!high → !med → !low → none,
- *                  oldest first within a level), struck notes sink to the bottom.
  */
 
 import { CONFIG_DIR_NAME, DynamicBorder, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { type AutocompleteItem, Container, matchesKey, SelectList, Text, type SelectItem } from "@earendil-works/pi-tui";
+import { Container, matchesKey, SelectList, Text, type SelectItem } from "@earendil-works/pi-tui";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -213,23 +209,6 @@ export function setPriority(cwd: string, number: number, priority: Priority | "n
 	return true;
 }
 
-/** Priority rank: !high first, untagged last; ties broken by note number (oldest first). */
-const PRIORITY_RANK: Record<Priority, number> = { high: 0, med: 1, low: 2 };
-const rankOf = (n: ParsedNote): number => (n.priority ? PRIORITY_RANK[n.priority] : 3);
-const byPriority = (a: ParsedNote, b: ParsedNote): number => rankOf(a) - rankOf(b) || a.number - b.number;
-
-/**
- * Sort notes: active notes first by priority (!high → !med → !low → none,
- * oldest first within a level), struck notes sink to the bottom (same order).
- */
-export function sortNotes(cwd: string): { total: number; struck: number } {
-	const notes = parseNotes(readNotes(cwd));
-	const active = notes.filter((n) => !n.struck).sort(byPriority);
-	const struck = notes.filter((n) => n.struck).sort(byPriority);
-	setNotes(cwd, [...active, ...struck]);
-	return { total: notes.length, struck: struck.length };
-}
-
 // ---------------------------------------------------------------------------
 // /notes picker — SelectList with type-to-filter
 // ---------------------------------------------------------------------------
@@ -336,13 +315,6 @@ async function pickNote(ctx: ExtensionContext, notes: ParsedNote[]): Promise<Pic
 // ---------------------------------------------------------------------------
 
 export default function (pi: ExtensionAPI) {
-	// Track the workspace cwd for /strike argument completions (the completion
-	// callback receives no ctx).
-	let lastCwd = process.cwd();
-	pi.on("session_start", (_event, ctx) => {
-		lastCwd = ctx.cwd;
-	});
-
 	pi.registerCommand("note", {
 		description: "Append a note to the workspace notes file: /note <text> (view: /browse notes or Tab)",
 		handler: async (args, ctx) => {
@@ -434,75 +406,6 @@ export default function (pi: ExtensionAPI) {
 				}
 				// "Back" or Esc → loop back to the picker
 			}
-		},
-	});
-
-	pi.registerCommand("strike", {
-		description: "Toggle strikethrough on a note: /strike <number>",
-		getArgumentCompletions: (prefix): AutocompleteItem[] | null => {
-			const items: AutocompleteItem[] = parseNotes(readNotes(lastCwd)).map((n) => ({
-				value: String(n.number),
-				label: `#${n.number}${n.struck ? " (struck)" : ""}`,
-				description: (n.lines[0] ?? "").trim(),
-			}));
-			const filtered = items.filter((i) => i.value.startsWith(prefix));
-			return filtered.length > 0 ? filtered : null;
-		},
-		handler: async (args, ctx) => {
-			const n = Number.parseInt(args.trim(), 10);
-			if (!Number.isFinite(n)) {
-				ctx.ui.notify("Usage: /strike <note-number>", "info");
-				return;
-			}
-			const struck = toggleStrike(ctx.cwd, n);
-			if (struck === undefined) {
-				ctx.ui.notify(`Note #${n} not found`, "error");
-				return;
-			}
-			pi.events.emit("notepad:changed", { cwd: ctx.cwd });
-			ctx.ui.notify(struck ? `Note #${n} struck through` : `Note #${n} unstruck`, "info");
-		},
-	});
-
-	pi.registerCommand("priority", {
-		description: "Set a note's priority: /priority <number> <high|med|low|none>",
-		getArgumentCompletions: (prefix): AutocompleteItem[] | null => {
-			if (prefix.includes(" ")) return null; // only complete the note number
-			const items: AutocompleteItem[] = parseNotes(readNotes(lastCwd)).map((n) => ({
-				value: String(n.number),
-				label: `#${n.number}${n.priority ? ` (!${n.priority})` : ""}${n.struck ? " (struck)" : ""}`,
-				description: (n.lines[0] ?? "").trim(),
-			}));
-			const filtered = items.filter((i) => i.value.startsWith(prefix));
-			return filtered.length > 0 ? filtered : null;
-		},
-		handler: async (args, ctx) => {
-			const m = /^\s*(\d+)\s+(high|med|low|none)\s*$/i.exec(args);
-			if (!m) {
-				ctx.ui.notify("Usage: /priority <note-number> <high|med|low|none>", "info");
-				return;
-			}
-			const n = Number(m[1]);
-			const level = m[2]!.toLowerCase() as Priority | "none";
-			if (!setPriority(ctx.cwd, n, level)) {
-				ctx.ui.notify(`Note #${n} not found`, "error");
-				return;
-			}
-			pi.events.emit("notepad:changed", { cwd: ctx.cwd });
-			ctx.ui.notify(`Note #${n} priority → ${level}`, "info");
-		},
-	});
-
-	pi.registerCommand("sort", {
-		description: "Sort notes: active first by priority (!high → !med → !low → none, oldest first), struck sink to the bottom",
-		handler: async (_args, ctx) => {
-			const { total, struck } = sortNotes(ctx.cwd);
-			if (total === 0) {
-				ctx.ui.notify("No notes to sort", "info");
-				return;
-			}
-			pi.events.emit("notepad:changed", { cwd: ctx.cwd });
-			ctx.ui.notify(`Sorted ${total} note(s) — ${struck} struck at the bottom`, "info");
 		},
 	});
 }
