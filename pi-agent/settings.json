@@ -4,7 +4,6 @@
     "defaultProvider":  "fireworks",
     "defaultModel":  "accounts/fireworks/models/kimi-k3",
     "packages":  [
-                     "npm:@narumitw/pi-plan-mode",
                      "npm:@gotgenes/pi-permission-system"
                  ],
     "defaultThinkingLevel":  "high"
