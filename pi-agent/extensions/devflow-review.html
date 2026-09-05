@@ -1,0 +1,562 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DevFlow · Plan Review</title>
+<style>
+:root {
+	--bg: #17171b;
+	--panel: #1f1f25;
+	--panel-2: #26262e;
+	--border: #33333d;
+	--fg: #e7e7ea;
+	--muted: #9b9ba6;
+	--accent: #8ab4f8;
+	--ok: #8fd694;
+	--warn: #e3b341;
+	--err: #f2836b;
+	--mark: rgba(227, 179, 65, 0.22);
+	--mark-border: rgba(227, 179, 65, 0.55);
+}
+@media (prefers-color-scheme: light) {
+	:root {
+		--bg: #fafafa;
+		--panel: #ffffff;
+		--panel-2: #f1f1f4;
+		--border: #dcdce2;
+		--fg: #1c1c20;
+		--muted: #6a6a74;
+		--accent: #2f6feb;
+		--ok: #1f883d;
+		--warn: #9a6700;
+		--err: #cf222e;
+		--mark: rgba(255, 214, 102, 0.5);
+		--mark-border: rgba(154, 103, 0, 0.5);
+	}
+}
+* { box-sizing: border-box; }
+body {
+	margin: 0;
+	background: var(--bg);
+	color: var(--fg);
+	font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+header {
+	position: sticky; top: 0; z-index: 20;
+	display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+	padding: 10px 18px;
+	background: var(--panel);
+	border-bottom: 1px solid var(--border);
+}
+header h1 { font-size: 14px; margin: 0; font-weight: 600; letter-spacing: .02em; white-space: nowrap; }
+#status { color: var(--muted); font-size: 13px; flex: 1; min-width: 180px; }
+button {
+	font: inherit; padding: 6px 13px; border-radius: 6px;
+	border: 1px solid var(--border); background: var(--panel-2);
+	color: var(--fg); cursor: pointer; white-space: nowrap;
+}
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:disabled { opacity: .45; cursor: default; }
+button.primary { background: var(--ok); border-color: var(--ok); color: #0e2410; font-weight: 600; }
+button.danger { background: var(--err); border-color: var(--err); color: #2a100c; font-weight: 600; }
+#banner { display: none; padding: 10px 18px; font-size: 14px; align-items: center; gap: 10px; }
+#banner.show { display: flex; }
+#banner.ok { background: rgba(143, 214, 148, .16); color: var(--ok); }
+#banner.warn { background: rgba(227, 179, 65, .16); color: var(--warn); }
+.spin {
+	width: 14px; height: 14px; flex: 0 0 14px;
+	border: 2px solid currentColor; border-right-color: transparent;
+	border-radius: 50%; animation: dfspin .7s linear infinite;
+}
+@keyframes dfspin { to { transform: rotate(360deg); } }
+main {
+	display: grid; grid-template-columns: minmax(0, 1fr) 340px;
+	gap: 22px; padding: 22px; align-items: start;
+}
+@media (max-width: 940px) { main { grid-template-columns: minmax(0, 1fr); } }
+#doc { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 24px 30px; }
+#doc h1, #doc h2, #doc h3, #doc h4, #doc h5, #doc h6 { line-height: 1.3; margin: 1.3em 0 .5em; }
+#doc h1:first-child, #doc h2:first-child { margin-top: 0; }
+#doc h1 { font-size: 1.5em; } #doc h2 { font-size: 1.26em; } #doc h3 { font-size: 1.1em; }
+#doc p, #doc li { margin: .45em 0; }
+#doc ul, #doc ol { padding-left: 1.5em; margin: .5em 0; }
+#doc code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; font-size: .92em; }
+#doc pre { background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; overflow: auto; }
+#doc pre code { background: none; padding: 0; }
+#doc blockquote { margin: .6em 0; padding: .2em 1em; border-left: 3px solid var(--border); color: var(--muted); }
+#doc hr { border: 0; border-top: 1px solid var(--border); margin: 1.4em 0; }
+#doc a { color: var(--accent); }
+#doc del { color: var(--muted); }
+#doc mark[data-ann] {
+	background: var(--mark); border-bottom: 1px solid var(--mark-border);
+	color: inherit; padding: 0 1px; border-radius: 2px; cursor: pointer;
+}
+aside { position: sticky; top: 72px; display: flex; flex-direction: column; gap: 12px; }
+.card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+.card h2 { font-size: 12px; margin: 0 0 10px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+#annotations { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+#annotations li { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; background: var(--panel-2); }
+#annotations .q {
+	display: block; font-size: 12.5px; color: var(--muted);
+	border-left: 2px solid var(--warn); padding-left: 8px; margin-bottom: 6px; white-space: pre-wrap;
+}
+#annotations .n { white-space: pre-wrap; }
+#annotations .row { display: flex; gap: 6px; justify-content: flex-end; margin-top: 8px; }
+#annotations .row button { padding: 2px 9px; font-size: 12px; }
+.empty { color: var(--muted); font-size: 13px; margin: 0; }
+textarea {
+	width: 100%; font: inherit; background: var(--panel-2); color: var(--fg);
+	border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; resize: vertical;
+}
+textarea:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+#sel-btn {
+	position: absolute; display: none; z-index: 30;
+	padding: 4px 11px; font-size: 13px; box-shadow: 0 4px 14px rgba(0, 0, 0, .4);
+}
+#dialog { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(0, 0, 0, .55); z-index: 40; }
+#dialog.open { display: flex; }
+#dialog .box { width: min(560px, 92vw); background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 18px; }
+#dialog h3 { margin: 0 0 10px; font-size: 15px; }
+#dialog-quote {
+	font-size: 13px; color: var(--muted); border-left: 2px solid var(--warn);
+	padding-left: 10px; margin-bottom: 12px; max-height: 8em; overflow: auto; white-space: pre-wrap;
+}
+#dialog .row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
+kbd { background: var(--panel-2); border: 1px solid var(--border); border-radius: 4px; padding: 0 5px; font-size: 12px; }
+</style>
+</head>
+<body>
+<header>
+	<h1>DevFlow · Plan Review</h1>
+	<span id="status">Select any text to annotate · <kbd>Ctrl</kbd>+<kbd>Enter</kbd> approves</span>
+	<button id="copy" title="Copy the compiled feedback to the clipboard">Copy feedback</button>
+	<button id="dismiss" title="Close without a decision">Dismiss</button>
+	<button id="changes" class="danger" title="Send annotations back to the planner">Request changes</button>
+	<button id="approve" class="primary" title="Hand the plan to the worker model">Approve</button>
+</header>
+<div id="banner"><span id="banner-spin" class="spin" hidden></span><span id="banner-text"></span></div>
+<main>
+	<article id="doc"></article>
+	<aside>
+		<div class="card">
+			<h2>Annotations <span id="count"></span></h2>
+			<ul id="annotations"></ul>
+			<p class="empty" id="annotations-empty">No annotations yet — select any text in the plan to add one.</p>
+		</div>
+		<div class="card">
+			<h2>General comment</h2>
+			<textarea id="general" rows="4" placeholder="Overall notes about the plan (optional)"></textarea>
+		</div>
+	</aside>
+</main>
+<button id="sel-btn">＋ Annotate</button>
+<div id="dialog">
+	<div class="box">
+		<h3>Annotate selection</h3>
+		<div id="dialog-quote"></div>
+		<textarea id="dialog-note" rows="4" placeholder="What should change here?"></textarea>
+		<div class="row">
+			<button id="dialog-cancel">Cancel</button>
+			<button id="dialog-save" class="primary">Save annotation</button>
+		</div>
+	</div>
+</div>
+<script>
+(function () {
+	"use strict";
+
+	var PLAN = __PLAN_JSON__;
+	var TOKEN = __TOKEN_JSON__;
+
+	var doc = document.getElementById("doc");
+	var listEl = document.getElementById("annotations");
+	var emptyEl = document.getElementById("annotations-empty");
+	var countEl = document.getElementById("count");
+	var generalEl = document.getElementById("general");
+	var statusEl = document.getElementById("status");
+	var bannerEl = document.getElementById("banner");
+	var bannerSpin = document.getElementById("banner-spin");
+	var bannerText = document.getElementById("banner-text");
+	var approveBtn = document.getElementById("approve");
+	var changesBtn = document.getElementById("changes");
+	var dismissBtn = document.getElementById("dismiss");
+	var copyBtn = document.getElementById("copy");
+	var selBtn = document.getElementById("sel-btn");
+	var dialogEl = document.getElementById("dialog");
+	var quoteEl = document.getElementById("dialog-quote");
+	var noteEl = document.getElementById("dialog-note");
+	var saveBtn = document.getElementById("dialog-save");
+	var cancelBtn = document.getElementById("dialog-cancel");
+
+	var annotations = [];
+	var pendingQuote = "";
+	var editing = -1;
+	var sent = false;
+
+	// ---------------------------------------------------------------- markdown
+
+	function escapeHtml(s) {
+		return String(s)
+			.replace(/&/g, "&amp;")
+			.replace(/</g, "&lt;")
+			.replace(/>/g, "&gt;")
+			.replace(/"/g, "&quot;");
+	}
+
+	function inlineMd(s) {
+		return s
+			.replace(/`([^`]+)`/g, "<code>$1</code>")
+			.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+			.replace(/(^|[^*\w])\*([^*\n]+)\*(?!\*)/g, "$1<em>$2</em>")
+			.replace(/~~([^~]+)~~/g, "<del>$1</del>")
+			.replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+	}
+
+	var FENCE = /^\s*```/;
+	var HEADING = /^(#{1,6})\s+(.*)$/;
+	var HR = /^\s*([-*_])\1{2,}\s*$/;
+	var QUOTE = /^\s*>\s?(.*)$/;
+	var LIST = /^(\s*)([-*+]|\d+\.)\s+(.*)$/;
+
+	function renderMarkdown(src) {
+		var lines = String(src).replace(/\r\n/g, "\n").split("\n");
+		var out = [];
+		var stack = [];
+		var i = 0;
+
+		function closeAll() {
+			while (stack.length) out.push("</" + stack.pop().type + ">");
+		}
+
+		while (i < lines.length) {
+			var line = lines[i];
+
+			if (FENCE.test(line)) {
+				closeAll();
+				var code = [];
+				i++;
+				while (i < lines.length && !FENCE.test(lines[i])) { code.push(lines[i]); i++; }
+				i++;
+				out.push("<pre><code>" + escapeHtml(code.join("\n")) + "</code></pre>");
+				continue;
+			}
+
+			var h = HEADING.exec(line);
+			if (h) {
+				closeAll();
+				var lvl = h[1].length;
+				out.push("<h" + lvl + ">" + inlineMd(escapeHtml(h[2])) + "</h" + lvl + ">");
+				i++;
+				continue;
+			}
+
+			if (HR.test(line)) { closeAll(); out.push("<hr>"); i++; continue; }
+
+			if (QUOTE.test(line)) {
+				closeAll();
+				var quoted = [];
+				while (i < lines.length && QUOTE.test(lines[i])) { quoted.push(QUOTE.exec(lines[i])[1]); i++; }
+				out.push("<blockquote>" + inlineMd(escapeHtml(quoted.join(" "))) + "</blockquote>");
+				continue;
+			}
+
+			var li = LIST.exec(line);
+			if (li) {
+				var indent = li[1].length;
+				var type = /\d/.test(li[2]) ? "ol" : "ul";
+				while (stack.length && stack[stack.length - 1].indent > indent) {
+					out.push("</" + stack.pop().type + ">");
+				}
+				var top = stack.length ? stack[stack.length - 1] : null;
+				if (!top || top.indent < indent) {
+					out.push("<" + type + ">");
+					stack.push({ type: type, indent: indent });
+				} else if (top.type !== type) {
+					out.push("</" + top.type + "><" + type + ">");
+					stack.pop();
+					stack.push({ type: type, indent: indent });
+				}
+				out.push("<li>" + inlineMd(escapeHtml(li[3])) + "</li>");
+				i++;
+				continue;
+			}
+
+			if (!line.trim()) { closeAll(); i++; continue; }
+
+			closeAll();
+			var para = [];
+			while (
+				i < lines.length && lines[i].trim() &&
+				!FENCE.test(lines[i]) && !HEADING.test(lines[i]) &&
+				!LIST.test(lines[i]) && !QUOTE.test(lines[i])
+			) {
+				para.push(lines[i].trim());
+				i++;
+			}
+			out.push("<p>" + inlineMd(escapeHtml(para.join(" "))) + "</p>");
+		}
+
+		closeAll();
+		return out.join("\n");
+	}
+
+	// ------------------------------------------------------------- annotations
+
+	function markCandidates(quote) {
+		var firstLine = quote.split("\n")[0];
+		var candidates = [quote];
+		if (firstLine && firstLine !== quote) candidates.push(firstLine);
+		if (quote.length > 80) candidates.push(quote.slice(0, 80));
+		return candidates;
+	}
+
+	function clearMarks() {
+		var marks = doc.querySelectorAll("mark[data-ann]");
+		for (var i = 0; i < marks.length; i++) {
+			var mark = marks[i];
+			var parent = mark.parentNode;
+			if (!parent) continue;
+			while (mark.firstChild) parent.insertBefore(mark.firstChild, mark);
+			parent.removeChild(mark);
+			parent.normalize();
+		}
+	}
+
+	function applyMarks() {
+		clearMarks();
+		annotations.forEach(function (a, idx) {
+			if (!a.quote) return;
+			var candidates = markCandidates(a.quote);
+			var walker = document.createTreeWalker(doc, NodeFilter.SHOW_TEXT, null);
+			var node;
+			while ((node = walker.nextNode())) {
+				var parent = node.parentNode;
+				if (!parent || !parent.closest || parent.closest("pre") || parent.nodeName === "MARK") continue;
+				var text = node.textContent || "";
+				for (var c = 0; c < candidates.length; c++) {
+					var at = text.indexOf(candidates[c]);
+					if (at === -1) continue;
+					var range = document.createRange();
+					range.setStart(node, at);
+					range.setEnd(node, at + candidates[c].length);
+					var mark = document.createElement("mark");
+					mark.setAttribute("data-ann", String(idx));
+					mark.title = a.note;
+					try { range.surroundContents(mark); } catch (e) { /* partial node selection */ }
+					return;
+				}
+			}
+		});
+	}
+
+	function renderList() {
+		listEl.innerHTML = "";
+		emptyEl.style.display = annotations.length ? "none" : "block";
+		countEl.textContent = annotations.length ? "(" + annotations.length + ")" : "";
+
+		annotations.forEach(function (a, idx) {
+			var li = document.createElement("li");
+
+			var q = document.createElement("span");
+			q.className = "q";
+			q.textContent = a.quote.length > 220 ? a.quote.slice(0, 220) + "…" : a.quote;
+
+			var n = document.createElement("div");
+			n.className = "n";
+			n.textContent = a.note;
+
+			var row = document.createElement("div");
+			row.className = "row";
+
+			var edit = document.createElement("button");
+			edit.textContent = "Edit";
+			edit.addEventListener("click", function () { openDialog(a.quote, idx); });
+
+			var del = document.createElement("button");
+			del.textContent = "Delete";
+			del.addEventListener("click", function () {
+				annotations.splice(idx, 1);
+				renderList();
+			});
+
+			row.appendChild(edit);
+			row.appendChild(del);
+			li.appendChild(q);
+			li.appendChild(n);
+			li.appendChild(row);
+			listEl.appendChild(li);
+		});
+
+		applyMarks();
+	}
+
+	function compileFeedback() {
+		var parts = [];
+		var general = generalEl.value.trim();
+		if (general) parts.push(general);
+		annotations.forEach(function (a, i) {
+			parts.push((i + 1) + '. On "' + a.quote + '":\n   ' + a.note);
+		});
+		return parts.join("\n\n");
+	}
+
+	// ---------------------------------------------------------------- decisions
+
+	function setButtonsDisabled(disabled) {
+		[approveBtn, changesBtn, dismissBtn, copyBtn].forEach(function (b) { b.disabled = disabled; });
+	}
+
+	function showBanner(kind, message, loading) {
+		bannerEl.className = "show " + kind;
+		bannerSpin.hidden = !loading;
+		bannerText.textContent = message;
+	}
+
+	function post(payload, pendingMessage, doneMessage) {
+		if (sent) return;
+		sent = true;
+		setButtonsDisabled(true);
+		showBanner(payload.approved ? "ok" : "warn", pendingMessage, true);
+		statusEl.textContent = "Sending decision…";
+		fetch("/api/decision?token=" + encodeURIComponent(TOKEN), {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify(payload)
+		}).then(function () {
+			showBanner(payload.approved ? "ok" : "warn", doneMessage, false);
+			statusEl.textContent = "Decision sent — this window will close.";
+			setTimeout(function () { window.close(); }, 500);
+		}).catch(function () {
+			sent = false;
+			setButtonsDisabled(false);
+			showBanner("warn", "Could not reach devflow — the review session may have closed. Use “Copy feedback” and paste it into pi.", false);
+			statusEl.textContent = "Send failed.";
+		});
+	}
+
+	approveBtn.addEventListener("click", function () {
+		post({ approved: true, feedback: compileFeedback() }, "Handing the plan to the worker…", "Approved — closing this window.");
+	});
+
+	changesBtn.addEventListener("click", function () {
+		var feedback = compileFeedback();
+		if (!feedback.trim()) {
+			statusEl.textContent = "Add at least one annotation or a general comment before requesting changes.";
+			return;
+		}
+		post({ approved: false, feedback: feedback }, "Sending your notes to the planner…", "Changes requested — closing this window.");
+	});
+
+	dismissBtn.addEventListener("click", function () {
+		post({ approved: false, feedback: "" }, "Dismissing…", "Dismissed — closing this window.");
+	});
+
+	copyBtn.addEventListener("click", function () {
+		var text = compileFeedback();
+		if (!text.trim()) { statusEl.textContent = "Nothing to copy yet."; return; }
+		if (navigator.clipboard && navigator.clipboard.writeText) {
+			navigator.clipboard.writeText(text).then(function () {
+				statusEl.textContent = "Feedback copied to the clipboard.";
+			}, function () {
+				statusEl.textContent = "Clipboard blocked by the browser — select the text manually.";
+			});
+		} else {
+			statusEl.textContent = "Clipboard unavailable in this browser.";
+		}
+	});
+
+	// ------------------------------------------------------- select → annotate
+
+	function selectionQuote() {
+		var sel = window.getSelection();
+		if (!sel || sel.isCollapsed || sel.rangeCount === 0) return "";
+		var range = sel.getRangeAt(0);
+		if (!doc.contains(range.commonAncestorContainer)) return "";
+		return sel.toString().replace(/\s+/g, " ").trim();
+	}
+
+	document.addEventListener("mouseup", function (event) {
+		if (sent || dialogEl.classList.contains("open")) return;
+		if (event.target === selBtn || selBtn.contains(event.target)) return;
+		setTimeout(function () {
+			var quote = selectionQuote();
+			if (!quote) { selBtn.style.display = "none"; return; }
+			pendingQuote = quote;
+			var rect = window.getSelection().getRangeAt(0).getBoundingClientRect();
+			selBtn.style.display = "block";
+			selBtn.style.left = Math.max(8, rect.left + window.scrollX + rect.width / 2 - 50) + "px";
+			selBtn.style.top = Math.max(8, rect.top + window.scrollY - 38) + "px";
+		}, 0);
+	});
+
+	document.addEventListener("mousedown", function (event) {
+		if (event.target === selBtn || selBtn.contains(event.target)) return;
+		selBtn.style.display = "none";
+	});
+
+	selBtn.addEventListener("click", function () {
+		var quote = pendingQuote || selectionQuote();
+		selBtn.style.display = "none";
+		if (!quote) return;
+		var sel = window.getSelection();
+		if (sel) sel.removeAllRanges();
+		openDialog(quote, -1);
+	});
+
+	function openDialog(quote, index) {
+		pendingQuote = quote;
+		editing = index;
+		quoteEl.textContent = quote.length > 600 ? quote.slice(0, 600) + "…" : quote;
+		noteEl.value = index >= 0 ? annotations[index].note : "";
+		dialogEl.classList.add("open");
+		noteEl.focus();
+	}
+
+	function closeDialog() {
+		dialogEl.classList.remove("open");
+		editing = -1;
+		noteEl.value = "";
+	}
+
+	saveBtn.addEventListener("click", function () {
+		var note = noteEl.value.trim();
+		if (!note) { noteEl.focus(); return; }
+		if (editing >= 0) annotations[editing] = { quote: pendingQuote, note: note };
+		else annotations.push({ quote: pendingQuote, note: note });
+		closeDialog();
+		renderList();
+	});
+
+	cancelBtn.addEventListener("click", closeDialog);
+
+	dialogEl.addEventListener("mousedown", function (event) {
+		if (event.target === dialogEl) closeDialog();
+	});
+
+	document.addEventListener("keydown", function (event) {
+		if (event.key === "Escape" && dialogEl.classList.contains("open")) { closeDialog(); return; }
+		if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+			event.preventDefault();
+			if (dialogEl.classList.contains("open")) { saveBtn.click(); return; }
+			if (!sent) approveBtn.click();
+		}
+	});
+
+	// Clicking a highlight jumps to its annotation in the sidebar.
+	doc.addEventListener("click", function (event) {
+		var target = event.target;
+		if (!target || target.nodeName !== "MARK") return;
+		var idx = Number(target.getAttribute("data-ann"));
+		var item = listEl.children[idx];
+		if (item) item.scrollIntoView({ behavior: "smooth", block: "center" });
+	});
+
+	// ------------------------------------------------------------------- init
+
+	doc.innerHTML = renderMarkdown(PLAN);
+	renderList();
+})();
+</script>
+</body>
+</html>
