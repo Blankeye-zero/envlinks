@@ -2,7 +2,6 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { existsSync } from "node:fs";
 import { appendFile, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { Type } from "typebox";
 import { FrontendSession, type Annotation } from "./session.ts";
 
 /** Format annotations into compact lines for agent context (or /ui confirm). */
@@ -329,17 +328,16 @@ export default function (pi: ExtensionAPI) {
 		promptGuidelines: [
 			"Use frontend_start when the user wants to run the frontend and annotate or inspect the UI.",
 		],
-		parameters: Type.Object({
-			url: Type.Optional(Type.String({ description: `App URL (default ${DEFAULT_URL})` })),
-			script: Type.Optional(
-				Type.String({ description: "npm script name from package.json. If omitted, the user is asked." }),
-			),
-			command: Type.Optional(
-				Type.String({ description: "Raw shell command override instead of an npm script" }),
-			),
-		}),
+		parameters: {
+			type: "object",
+			properties: {
+				url: { type: "string", description: `App URL (default ${DEFAULT_URL})` },
+				script: { type: "string", description: "npm script name from package.json. If omitted, the user is asked." },
+				command: { type: "string", description: "Raw shell command override instead of an npm script" },
+			},
+		},
 		async execute(_id, params, _signal, onUpdate, ctx) {
-			onUpdate?.({ content: [{ type: "text", text: "Starting dev server…" }] });
+			onUpdate?.({ content: [{ type: "text", text: "Starting dev server…" }], details: {} });
 			const message = await startFrontend(ctx, params);
 			return { content: [{ type: "text", text: message }], details: {} };
 		},
@@ -350,7 +348,7 @@ export default function (pi: ExtensionAPI) {
 		label: "Frontend Stop",
 		description: "Close the controlled browser and stop the dev server if the extension started it.",
 		promptSnippet: "Stop the frontend dev server and controlled browser",
-		parameters: Type.Object({}),
+		parameters: { type: "object", properties: {} },
 		async execute() {
 			const result = await requireSession().stopAll();
 			updateStatus();
@@ -371,7 +369,7 @@ export default function (pi: ExtensionAPI) {
 		label: "Frontend Status",
 		description: "Show dev server, browser, annotation, and console status for the frontend session.",
 		promptSnippet: "Show frontend server/browser/annotation status",
-		parameters: Type.Object({}),
+		parameters: { type: "object", properties: {} },
 		async execute() {
 			return { content: [{ type: "text", text: requireSession().status() }], details: {} };
 		},
@@ -382,9 +380,11 @@ export default function (pi: ExtensionAPI) {
 		label: "Frontend Navigate",
 		description: "Navigate the controlled browser to a URL or app-relative route (e.g. '/login').",
 		promptSnippet: "Navigate the controlled browser to a URL or route",
-		parameters: Type.Object({
-			url: Type.String({ description: "Absolute URL or app-relative route like '/users'" }),
-		}),
+		parameters: {
+			type: "object",
+			properties: { url: { type: "string", description: "Absolute URL or app-relative route like '/users'" } },
+			required: ["url"],
+		},
 		async execute(_id, params) {
 			const message = await requireSession().navigate(params.url);
 			return { content: [{ type: "text", text: message }], details: {} };
@@ -401,9 +401,11 @@ export default function (pi: ExtensionAPI) {
 			"Use frontend_annotate with enable=true when the user wants to mark up elements in the UI.",
 			"After the user says they finished annotating, use frontend_annotations to read their annotations before making code changes.",
 		],
-		parameters: Type.Object({
-			enable: Type.Boolean({ description: "true to enable pick mode, false to disable" }),
-		}),
+		parameters: {
+			type: "object",
+			properties: { enable: { type: "boolean", description: "true to enable pick mode, false to disable" } },
+			required: ["enable"],
+		},
 		async execute(_id, params) {
 			const s = requireSession();
 			const ok = await s.setAnnotate(params.enable);
@@ -424,12 +426,13 @@ export default function (pi: ExtensionAPI) {
 		promptGuidelines: [
 			"Use frontend_annotations when the user refers to elements they annotated in the UI; locate source files by grepping for the component class name or selector in each annotation.",
 		],
-		parameters: Type.Object({
-			clear: Type.Optional(Type.Boolean({ description: "Clear all annotations after reading" })),
-			includeImages: Type.Optional(
-				Type.Boolean({ description: "Embed element screenshots as images you can see (max 8)" }),
-			),
-		}),
+		parameters: {
+			type: "object",
+			properties: {
+				clear: { type: "boolean", description: "Clear all annotations after reading" },
+				includeImages: { type: "boolean", description: "Embed element screenshots as images you can see (max 8)" },
+			},
+		},
 		async execute(_id, params) {
 			const s = requireSession();
 			if (s.annotations.length === 0) {
@@ -440,7 +443,7 @@ export default function (pi: ExtensionAPI) {
 							text: "No annotations collected yet. Enable pick mode with frontend_annotate and ask the user to click elements in the browser.",
 						},
 					],
-					details: {},
+					details: { count: 0 },
 				};
 			}
 
@@ -495,11 +498,14 @@ export default function (pi: ExtensionAPI) {
 		description:
 			"Capture a screenshot from the controlled browser — full viewport, full page, a CSS selector, or a previously collected annotation — and view it as an image.",
 		promptSnippet: "Capture and view a screenshot of the running frontend",
-		parameters: Type.Object({
-			selector: Type.Optional(Type.String({ description: "CSS selector of an element to capture" })),
-			annotationId: Type.Optional(Type.Number({ description: "Capture the element of a collected annotation" })),
-			fullPage: Type.Optional(Type.Boolean({ description: "Capture the full scrollable page" })),
-		}),
+		parameters: {
+			type: "object",
+			properties: {
+				selector: { type: "string", description: "CSS selector of an element to capture" },
+				annotationId: { type: "number", description: "Capture the element of a collected annotation" },
+				fullPage: { type: "boolean", description: "Capture the full scrollable page" },
+			},
+		},
 		async execute(_id, params) {
 			const s = requireSession();
 			const { buffer, label, path } = await s.screenshot(params);
@@ -518,9 +524,10 @@ export default function (pi: ExtensionAPI) {
 		label: "Frontend Console",
 		description: "Read recent console messages and page errors captured from the controlled browser.",
 		promptSnippet: "Read console output and page errors from the controlled browser",
-		parameters: Type.Object({
-			clear: Type.Optional(Type.Boolean({ description: "Clear the console buffer after reading" })),
-		}),
+		parameters: {
+			type: "object",
+			properties: { clear: { type: "boolean", description: "Clear the console buffer after reading" } },
+		},
 		async execute(_id, params) {
 			const s = requireSession();
 			const entries = s.getConsole();

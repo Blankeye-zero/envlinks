@@ -70,9 +70,12 @@ function findBrowserExecutable(): string | null {
 	const envPath = process.env.PI_CHROME_PATH;
 	if (envPath && existsSync(envPath)) return envPath;
 
+	// "msedge" is a valid runtime channel, but the installed puppeteer-core
+	// typings restrict executablePath() to Chrome channels; widen the signature.
+	const executablePath = puppeteer.executablePath as (channel: string) => string;
 	for (const channel of ["chrome", "msedge"] as const) {
 		try {
-			const p = puppeteer.executablePath(channel);
+			const p = executablePath(channel);
 			if (existsSync(p)) return p;
 		} catch {
 			// channel not installed
