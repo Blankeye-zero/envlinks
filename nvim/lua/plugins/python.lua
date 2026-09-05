@@ -1,22 +1,5 @@
 -- ~/.config/nvim/lua/plugins/python.lua
 return {
-    -- Virtualenv selector: auto-detects uv's .venv on file open
-    {
-        "linux-cultist/venv-selector.nvim",
-        dependencies = { "neovim/nvim-lspconfig" },
-        event = "VeryLazy",
-        opts = {
-            settings = {
-                options = {
-                    notify_user_on_venv_activation = true,
-                },
-            },
-        },
-        keys = {
-            { "<leader>cv", "<cmd>VenvSelect<cr>", desc = "Select Python venv" },
-        },
-    },
-
     -- uv workflow: run files, add/remove packages, manage venvs
     {
         "benomahony/uv.nvim",
