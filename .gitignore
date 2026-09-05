@@ -33,3 +33,6 @@ dist/
 # --- backups ---
 *.bak
 *-bak-*/
+
+# pi ui-annotator screenshots
+.pi/annotations/

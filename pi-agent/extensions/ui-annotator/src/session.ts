@@ -10,11 +10,14 @@ export interface AnnotationComponent {
 	tag: string;
 	component?: string;
 	selector?: string;
+	framework?: string;
+	renderer?: string;
 }
 
 export interface Annotation {
 	id: number;
 	note: string;
+	framework?: string | null;
 	selector: string;
 	domPath: DomPathStep[];
 	tag: string;

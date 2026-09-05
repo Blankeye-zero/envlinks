@@ -214,7 +214,7 @@ export default function (pi: ExtensionAPI) {
 			"Next steps:",
 			"- Call frontend_annotate with enable=true to let the user click and annotate elements.",
 			"- When the user says they are done, call frontend_annotations to read what they marked.",
-			"- Locate source files by grepping for the component class name or selector from each annotation.",
+			"- Locate source files by grepping for the component name, selector, or source path from each annotation.",
 		].join("\n");
 	}
 
@@ -274,7 +274,7 @@ export default function (pi: ExtensionAPI) {
 					...lines,
 					"",
 					"Use the frontend_annotations tool for full details (HTML snippet, full component chain, embedded screenshots). " +
-						"Locate source files by grepping for the component class name or declared selector (e.g. `selector: 'app-x'`).",
+						"Locate source files by grepping for the component name, selector, or source path (e.g. `selector: 'app-x'`, `class LoginComponent`, or an Astro component-url path).",
 				].join("\n"),
 			);
 			inject = true;
@@ -395,7 +395,7 @@ export default function (pi: ExtensionAPI) {
 		name: "frontend_annotate",
 		label: "Frontend Annotate",
 		description:
-			"Enable or disable annotation pick mode in the controlled browser. While enabled, the user clicks elements in the UI and attaches notes; each annotation captures the CSS selector, Angular component chain, route, HTML snippet, and an element screenshot.",
+			"Enable or disable annotation pick mode in the controlled browser. While enabled, the user clicks elements in the UI and attaches notes; each annotation captures the CSS selector, framework component chain (Angular, Next.js/React, or Astro), route, HTML snippet, and an element screenshot.",
 		promptSnippet: "Toggle click-to-annotate mode in the controlled browser",
 		promptGuidelines: [
 			"Use frontend_annotate with enable=true when the user wants to mark up elements in the UI.",
@@ -421,10 +421,10 @@ export default function (pi: ExtensionAPI) {
 		name: "frontend_annotations",
 		label: "Frontend Annotations",
 		description:
-			"Read the UI annotations the user collected in the browser: note, CSS selector, Angular component chain (class name + declared selector in dev mode), page URL, text/HTML snippets, and screenshot paths.",
+			"Read the UI annotations the user collected in the browser: note, CSS selector, framework component chain (Angular, Next.js/React, or Astro), page URL, text/HTML snippets, and screenshot paths.",
 		promptSnippet: "Read UI annotations collected by the user in the browser",
 		promptGuidelines: [
-			"Use frontend_annotations when the user refers to elements they annotated in the UI; locate source files by grepping for the component class name or selector in each annotation.",
+			"Use frontend_annotations when the user refers to elements they annotated in the UI; locate source files by grepping for the component name, selector, or source path in each annotation.",
 		],
 		parameters: {
 			type: "object",
@@ -450,6 +450,7 @@ export default function (pi: ExtensionAPI) {
 			const list = s.annotations.map((a) => ({
 				id: a.id,
 				note: a.note,
+				framework: a.framework,
 				selector: a.selector,
 				tag: a.tag,
 				components: a.components,
@@ -467,8 +468,9 @@ export default function (pi: ExtensionAPI) {
 					text:
 						`${s.annotations.length} UI annotation(s):\n\n` +
 						JSON.stringify(list, null, 2) +
-						"\n\nTo find the source: grep for the component class name (e.g. `class LoginComponent`) " +
-						"or declared selector (e.g. `selector: 'app-login'`) under src/.",
+						"\n\nTo find the source: grep for the component name (e.g. `class LoginComponent` or a React " +
+						"component name), declared selector (e.g. `selector: 'app-login'`), or source path (Astro " +
+						"component-url) under the app's source directory.",
 				},
 			];
 
@@ -612,7 +614,7 @@ export default function (pi: ExtensionAPI) {
 							"Plan the implementation for the UI annotations I collected:\n\n" +
 								lines.join("\n") +
 								"\n\nUse frontend_annotations (with includeImages: true) for full details — HTML snippet, full component chain, and embedded screenshots. " +
-								"Locate source files by grepping for the component class name or declared selector (e.g. `selector: 'app-x'`).\n\n" +
+								"Locate source files by grepping for the component name, selector, or source path (e.g. `selector: 'app-x'`).\n\n" +
 								"Do NOT make any changes yet. Explore the relevant source files, then produce a detailed, numbered plan under a '## Plan' header describing exactly which files you would edit and what you would change. " +
 								"When it looks right, the user will run /ui confirm to implement it.",
 						);
@@ -634,7 +636,7 @@ export default function (pi: ExtensionAPI) {
 							"Implement the UI annotations I collected:\n\n" +
 								lines.join("\n") +
 								"\n\nUse frontend_annotations for full details (HTML snippet, component chain, embedded screenshots). " +
-								"Locate source files by grepping for the component class name or declared selector (e.g. `selector: 'app-x'`) and make the changes." +
+								"Locate source files by grepping for the component name, selector, or source path (e.g. `selector: 'app-x'`) and make the changes." +
 								(wasPlanMode ? "\n\nA plan was produced earlier under a '## Plan' header — follow it." : ""),
 						);
 						ctx.ui.notify(`Sent ${session.annotations.length} annotation(s) to the agent for implementation`, "info");

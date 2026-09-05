@@ -63,7 +63,7 @@ export function installPiPicker(): void {
 			const classes = (cur.getAttribute("class") || "")
 				.trim()
 				.split(/\s+/)
-				.filter((c) => c && !c.startsWith("ng-") && !c.startsWith("_ng"))
+				.filter((c) => c && !c.startsWith("ng-") && !c.startsWith("_ng") && !c.startsWith("astro-"))
 				.slice(0, 2);
 			if (classes.length > 0) {
 				part += "." + classes.map((c) => (w.CSS && CSS.escape ? CSS.escape(c) : c)).join(".");
@@ -103,37 +103,175 @@ export function installPiPicker(): void {
 		return cur;
 	}
 
-	/** Walk ancestors collecting Angular component host info. */
-	function angularChain(el: Element): Array<Record<string, string>> {
-		const chain: Array<Record<string, string>> = [];
-		let cur: Element | null = el;
-		const ng = w.ng; // Angular dev-mode debug API
-		while (cur && cur !== doc.body && chain.length < 6) {
+	// ---------------------------------------------------------------------------
+	// Framework detection & component metadata
+	// ---------------------------------------------------------------------------
+
+	let detectedFramework: string | null | undefined = undefined;
+
+	/** Detect the page's UI framework once (angular / nextjs / react / astro). */
+	function detectFramework(): string | null {
+		if (detectedFramework !== undefined) return detectedFramework;
+
+		if ((w.ng && typeof w.ng.getComponent === "function") || doc.querySelector("[ng-version]")) {
+			detectedFramework = "angular";
+		} else if (w.__NEXT_DATA__ || w.next) {
+			detectedFramework = "nextjs";
+		} else if (doc.querySelector("astro-island") || doc.querySelector("[data-astro-cid]") || hasAstroClass()) {
+			// Astro before generic React: Astro sites often embed React/Svelte islands
+			// that attach __reactFiber$-style keys to their hosts, which would make
+			// them look like plain React apps and hide the <astro-island> info.
+			detectedFramework = "astro";
+		} else if (hasReactHostNode()) {
+			detectedFramework = "react";
+		} else {
+			detectedFramework = null;
+		}
+		return detectedFramework;
+	}
+
+	/** React tags host DOM nodes with __reactFiber$ / __reactProps$ / __reactContainer$ keys. */
+	function hasReactHostNode(): boolean {
+		const probes: Array<Element | null> = [doc.body];
+		for (const el of Array.from(doc.querySelectorAll("div, main, section, span, a, button")).slice(0, 25)) {
+			probes.push(el as Element);
+		}
+		for (const el of probes) {
+			if (!el) continue;
+			for (const k of Object.getOwnPropertyNames(el)) {
+				if (k.startsWith("__reactFiber$") || k.startsWith("__reactProps$") || k.startsWith("__reactContainer$")) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	function hasAstroClass(): boolean {
+		// Astro scoped styles put an `astro-<hash>` (7-char) class on styled
+		// elements, and view transitions add `astro-view`/`astro-route` on <html>.
+		// Probe the whole document rather than just html/body — on a static page
+		// the scoped classes only appear on inner elements. Anchor on the class
+		// token prefix so a class like "mastro-x" doesn't false-positive.
+		return !!doc.querySelector('[class^="astro-"], [class*=" astro-"]');
+	}
+
+	/** `opts="{...}"` carries the real component name from the client: directive. */
+	function astroIslandComponentName(opts: string | null): string | null {
+		if (!opts) return null;
+		try {
+			const parsed = JSON.parse(opts);
+			return parsed && typeof parsed.name === "string" && parsed.name ? parsed.name : null;
+		} catch {
+			return null; // malformed opts; fall back below
+		}
+	}
+
+	/** Astro hydration islands (`<astro-island …>`) expose their component source. */
+	function astroIslandInfo(el: Element): Record<string, string> {
+		const entry: Record<string, string> = { tag: el.tagName.toLowerCase(), framework: "astro" };
+		const url = el.getAttribute("component-url") || "";
+		const exported = el.getAttribute("component-export") || "";
+		const renderer = el.getAttribute("renderer-url") || "";
+		if (url) entry.selector = url;
+		const name =
+			astroIslandComponentName(el.getAttribute("opts")) ||
+			(exported && exported !== "default" ? exported : "") ||
+			url.split("?")[0].split("/").pop() ||
+			"";
+		if (name) entry.component = name;
+		if (renderer) entry.renderer = renderer;
+		return entry;
+	}
+
+	/** React attaches a fiber to each host node; walk up to the nearest named component. */
+	function reactComponentName(el: Element): string | null {
+		let fiber: any = null;
+		for (const k of Object.getOwnPropertyNames(el)) {
+			if (k.startsWith("__reactFiber$")) {
+				fiber = (el as any)[k];
+				break;
+			}
+		}
+		while (fiber) {
+			const name = fiberComponentName(fiber.type);
+			if (name) return name;
+			fiber = fiber.return;
+		}
+		return null;
+	}
+
+	function fiberComponentName(type: any): string | null {
+		if (!type) return null;
+		if (typeof type === "string") return null; // host DOM element
+		if (typeof type === "function") return type.displayName || type.name || null;
+		if (typeof type === "object") {
+			const inner = type.render ?? type.type; // forwardRef / memo wrappers
+			if (inner && typeof inner === "function") return inner.displayName || inner.name || null;
+			return type.displayName || type.name || null;
+		}
+		return null;
+	}
+
+	/** Describe an ancestor as a component, if it is a framework host. */
+	function componentInfo(el: Element): Record<string, string> | null {
+		const tag = el.tagName.toLowerCase();
+		const fw = detectFramework();
+
+		if (fw === "astro") {
+			return tag === "astro-island" ? astroIslandInfo(el) : null;
+		}
+
+		if (fw === "angular") {
 			let isHost = false;
-			if (cur.attributes) {
-				for (const attr of Array.from(cur.attributes)) {
+			if (el.attributes) {
+				for (const attr of Array.from(el.attributes)) {
 					if (attr.name.startsWith("_nghost")) {
 						isHost = true;
 						break;
 					}
 				}
 			}
-			if (!isHost && cur.tagName.includes("-")) isHost = true;
-			if (isHost) {
-				const entry: Record<string, string> = { tag: cur.tagName.toLowerCase() };
-				try {
-					const comp = ng && ng.getComponent ? ng.getComponent(cur) : null;
-					if (comp) {
-						const ctor = comp.constructor as any;
-						if (ctor && ctor.name) entry.component = ctor.name;
-						const def = ctor && ctor.ɵcmp;
-						const sels = def && def.selectors;
-						if (sels && sels[0] && sels[0][0]) entry.selector = sels[0][0];
-					}
-				} catch {
-					// prod builds may not expose debug APIs; host tag is still useful
+			if (!isHost && tag.includes("-")) isHost = true;
+			if (!isHost) return null;
+			const entry: Record<string, string> = { tag, framework: "angular" };
+			try {
+				const comp = w.ng && w.ng.getComponent ? w.ng.getComponent(el) : null;
+				if (comp) {
+					const ctor = comp.constructor;
+					if (ctor && ctor.name) entry.component = ctor.name;
+					const def = ctor && ctor.ɵcmp;
+					const sels = def && def.selectors;
+					if (sels && sels[0] && sels[0][0]) entry.selector = sels[0][0];
 				}
-				chain.push(entry);
+			} catch {
+				// prod builds may not expose debug APIs; host tag is still useful
+			}
+			return entry;
+		}
+
+		if (fw === "react" || fw === "nextjs") {
+			const name = reactComponentName(el);
+			if (name) return { tag, framework: "react", component: name };
+			return null;
+		}
+
+		return null;
+	}
+
+	/** Walk ancestors collecting the nearest framework component chain (deduped). */
+	function componentChain(el: Element): Array<Record<string, string>> {
+		const chain: Array<Record<string, string>> = [];
+		let cur: Element | null = el;
+		let lastKey = "";
+		while (cur && cur !== doc.body && chain.length < 8) {
+			const info = componentInfo(cur);
+			if (info) {
+				const key = (info.framework || "") + "|" + (info.component || "") + "|" + (info.selector || info.tag);
+				if (key !== lastKey) {
+					chain.push(info);
+					lastKey = key;
+				}
 			}
 			cur = cur.parentElement;
 		}
@@ -144,10 +282,11 @@ export function installPiPicker(): void {
 		const rect = target.getBoundingClientRect();
 		return {
 			note,
+			framework: detectFramework(),
 			selector: buildSelector(target),
 			domPath: buildDomPath(target),
 			tag: target.tagName.toLowerCase(),
-			components: angularChain(target),
+			components: componentChain(target),
 			url: location.href,
 			title: doc.title,
 			rect: { x: rect.left, y: rect.top, width: rect.width, height: rect.height },

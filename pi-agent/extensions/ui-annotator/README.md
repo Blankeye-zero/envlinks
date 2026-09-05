@@ -1,7 +1,8 @@
 # ui-annotator (pi extension)
 
-Run an Angular (or any) frontend dev server, annotate UI elements in a live
-browser, and feed those annotations to pi as context for code changes.
+Run a web frontend dev server (Angular, Next.js/React, Astro, or any static/SPA
+app), annotate UI elements in a live browser, and feed those annotations to pi
+as context for code changes.
 
 ## How it works
 
@@ -26,10 +27,11 @@ pi extension (Node)
    planning.
 4. **Apply:** run `/ui confirm` to have pi implement all collected
    annotations (and follow the plan just produced) automatically — or describe
-   what you want ("fix the things I annotated"). Each annotation contains your note, CSS selector, Angular
-   component chain (class name + declared selector in dev mode), route, HTML
-   snippet and an element screenshot; pi greps for the component source and
-   edits the code.
+   what you want ("fix the things I annotated"). Each annotation contains your note, CSS selector, framework
+   component chain — Angular host tag + class name/declared selector, React
+   component name via its fiber (Next.js), or an Astro island's component-url /
+   exported component — route, HTML snippet and an element screenshot; pi greps
+   for the component source and edits the code.
 
 ## Tools
 
