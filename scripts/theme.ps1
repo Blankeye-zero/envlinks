@@ -123,11 +123,6 @@ function Resolve-PackName([string]$Query) {
     throw "no installed themepack matches '$Query'. Run 'theme.ps1 -List' or 'theme.ps1 -Search $Query'."
 }
 
-function Get-PackObject([string]$Path) {
-    $pack = Read-JsonFile $Path
-    return $pack
-}
-
 function Install-Pack {
     param([Parameter(Mandatory)]$Pack, [string]$Origin)
     $errors = Test-Themepack $Pack -ExistingNames @((Get-InstalledPacks).BaseName)
@@ -149,7 +144,7 @@ function Install-Pack {
 
 function Apply-Pack([string]$PackName) {
     $path = Join-Path $themesDir "$PackName.json"
-    $pack = Get-PackObject $path
+    $pack = Read-JsonFile $path
     $errors = Test-Themepack $pack -AllowName $PackName
     if ($errors.Count) {
         Write-Host "themepack '$PackName' failed validation:" -ForegroundColor Red
@@ -224,45 +219,6 @@ function Apply-Pack([string]$PackName) {
     Write-Host "  - pi picks the new theme on next start (or select it via /settings)."
 }
 
-function Show-Help {
-    Write-Host @"
-
-theme.cmd - switch the colorscheme for Windows Terminal, Neovim, and pi agent.
-
-SWITCH
-  theme.cmd                        interactive menu of installed themepacks
-  theme.cmd nord                   apply an installed pack (prefix works: theme.cmd tokyo)
-  theme.cmd -List                  list installed packs (* = active)
-  theme.cmd -Current               show the active scheme per app
-
-DISCOVER / INSTALL FROM THE INTERNET
-  theme.cmd -Search tokyo          search tinted-theming/schemes (337 base16 schemes), pick to install
-  theme.cmd -FromBase16 <yaml-url> install any base16 scheme straight from a URL
-  theme.cmd -Add <json-url>        install a themepack (themepack v1 JSON) from a URL
-
-TEST
-  theme.cmd -Validate <url|file>   validate + print the derived WT/pi/nvim output; applies nothing
-  theme.cmd -SelfTest              validate all installed themepacks (exit 0/1)
-
-  theme.cmd -Help                  this help
-
-AFTER SWITCHING
-  Windows Terminal   live (WT auto-reloads settings.json)
-  Neovim             next nvim start (lazy.nvim auto-installs the needed plugin)
-  pi                 next pi start, or pick it in /settings
-
-AUTHOR YOUR OWN
-  A themepack is one JSON file; a name + 16 base16 palette colors is a complete pack
-  (nvim renders it via mini.base16, WT and pi colors are derived). Schema and examples:
-  scripts\schemas\themepack-v1.schema.json, README.md. Test loop: theme.cmd -Validate <url>.
-
-EXAMPLES
-  theme.cmd -FromBase16 https://raw.githubusercontent.com/tinted-theming/schemes/spec-0.11/base16/everforest-dark-hard.yaml
-  theme.cmd -Validate  .\scripts\themes\nord.json
-  theme.cmd gruvbox-dark-hard
-"@
-}
-
 function Show-PackList {
     $packs = Get-InstalledPacks
     if (-not $packs.Count) {
@@ -330,7 +286,7 @@ function Invoke-Validate([string]$Target) {
             $pack = $text | ConvertFrom-Json
         }
     } else {
-        $pack = Get-PackObject $Target
+        $pack = Read-JsonFile $Target
     }
 
     $errors = Test-Themepack $pack -AllowName ([string]$pack.name)
@@ -360,7 +316,7 @@ function Invoke-SelfTest {
         exit 0
     }
     foreach ($p in $packs) {
-        $pack = Get-PackObject $p.FullName
+        $pack = Read-JsonFile $p.FullName
         $errors = Test-Themepack $pack -AllowName $p.BaseName
         if ($p.BaseName -ne [string]$pack.name) {
             $errors += "filename '$($p.BaseName).json' does not match pack name '$($pack.name)'"
@@ -408,7 +364,7 @@ switch ($PSCmdlet.ParameterSetName) {
     'Search'     { Invoke-Search $Search; break }
     'Validate'   { Invoke-Validate $Validate; break }
     'SelfTest'   { Invoke-SelfTest; break }
-    'Help'       { Show-Help; break }
+    'Help'       { Get-Help $PSCommandPath; break }
     'Apply'      {
         if ([string]::IsNullOrWhiteSpace($Name)) {
             # interactive menu

@@ -71,8 +71,9 @@ function Test-Themepack {
         }
     }
 
-    # --- pi overrides ---
-    $hasPiColors = ($null -ne $Pack.pi -and $null -ne $Pack.pi.colors)
+    if (-not $hasPalette) {
+        $errors.Add('missing required field: palette')
+    }
 
     # --- wt overrides ---
     $hasWtColors = ($null -ne $Pack.wt -and $null -ne $Pack.wt.colors)
@@ -84,19 +85,6 @@ function Test-Themepack {
                 $errors.Add("wt.colors.$($prop.Name) must be a #rrggbb hex color (got '$($prop.Value)')")
             }
         }
-    }
-
-    # --- completeness rule: palette OR (plugin spec + full pi + full wt) ---
-    if (-not $hasPalette) {
-        $fullPi = $hasPiColors -and (@($Pack.pi.colors.PSObject.Properties.Name | Where-Object {
-            $script:PiRequiredTokens -contains $_
-        }).Count -eq $script:PiRequiredTokens.Count)
-        $fullWt = $hasWtColors -and (@($Pack.wt.colors.PSObject.Properties.Name | Where-Object {
-            $script:WtColorKeys -contains $_
-        }).Count -eq $script:WtColorKeys.Count)
-        if (-not $hasPluginSpec) { $errors.Add('no palette: nvim.spec must be provided explicitly') }
-        if (-not $fullPi)        { $errors.Add('no palette: pi.colors must define all pi tokens explicitly') }
-        if (-not $fullWt)        { $errors.Add('no palette: wt.colors must define all 20 WT colors explicitly') }
     }
 
     # --- merge + final artifact checks (only if structurally OK so far) ---
